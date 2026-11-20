@@ -36,6 +36,7 @@ export const mindNodeDataSchema = z.object({
   lastSeen: z.string().optional(),
   evidence: z.array(evidenceRefSchema).max(200).default([]),
   parentId: z.string().optional(),
+  isGroup: z.boolean().default(false),
   collapsed: z.boolean().default(false),
   locked: z.boolean().default(false),
   customKind: z.string().max(80).optional(),
@@ -61,6 +62,7 @@ export const mindEdgeDataSchema = z.object({
   explanation: z.string().max(2000).optional(),
   signal: z.boolean().default(true),
   direction: z.enum(['forward', 'reverse', 'bidirectional']).default('forward'),
+  customRelation: z.string().max(80).optional(),
   provenance: z.enum(PROVENANCE_LABELS).default('seed'),
   confidence: z.number().min(0).max(1).nullable().default(null),
   createdAt: z.string().optional(),
@@ -89,6 +91,18 @@ export const projectFileSchema = z.object({
     title: z.string().max(200).optional(),
     description: z.string().max(1000).optional(),
     exportedBy: z.string().max(100).optional(),
+    customCategories: z.array(z.object({
+      id: z.string().min(1).max(80),
+      label: z.string().min(1).max(120),
+      color: z.string().max(30),
+      definition: z.string().max(1000).default(''),
+      baseKind: z.enum(MIND_NODE_KINDS),
+    })).default([]),
+    customRelations: z.array(z.object({
+      id: z.string().min(1).max(80),
+      label: z.string().min(1).max(120),
+      baseRelation: z.enum(MIND_RELATIONS),
+    })).default([]),
   }).optional(),
 }).superRefine((file, ctx) => {
   const ids = new Set<string>();

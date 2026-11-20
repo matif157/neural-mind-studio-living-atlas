@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../server/index';
-import { analysisRequestSchema } from '../shared/schemas';
+import { analysisRequestSchema, type AiAnalysis } from '../shared/schemas';
 import { validateAnalysis } from '../server/pipeline/validate';
 import { detectSafetyFlags } from '../server/pipeline/safety';
 
@@ -102,7 +102,7 @@ describe('AI output validation and safety', () => {
   });
 });
 
-function validAnalysis() {
+function validAnalysis(): AiAnalysis {
   return {
     response_to_user: 'Thank you for sharing. What would help you feel more connected?',
     conversation_summary: 'A reflection about a friend not replying.',

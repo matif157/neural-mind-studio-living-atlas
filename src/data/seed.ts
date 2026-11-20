@@ -16,7 +16,11 @@ const node = (
   id,
   type: 'mind',
   position: { x, y },
-  data: { label, kind, description, innerVoice, balancedVoice, intensity, valence, tags, createdAt: 'seed' },
+  data: {
+    label, kind, description, innerVoice, balancedVoice, intensity, valence, tags,
+    createdAt: 'seed', updatedAt: 'seed', isCore: false, provenance: 'seed', status: 'active',
+    confidence: null, evidence: [], collapsed: false, locked: false, isGroup: false,
+  },
 });
 
 const edge = (id: string, source: string, target: string, relation: MindRelation, weight = 0.65, note?: string): MindEdge => ({
@@ -25,12 +29,12 @@ const edge = (id: string, source: string, target: string, relation: MindRelation
   target,
   type: 'neural',
   animated: true,
-  data: { relation, weight, note, signal: true },
+  data: { relation, weight, note, signal: true, direction: 'forward', provenance: 'seed', confidence: null, createdAt: 'seed' },
 });
 
 export const seedNodes: MindNode[] = [
   node('present-focus', 'thought', 'Present experience', 665, 405, 'The experience being noticed right now. It may include sensations, thoughts, emotions and context at the same time.', '“Something is happening inside me. I can notice it without deciding what it means immediately.”', '“I can name what is present, then choose one small next step.”', 0.62, 'neutral', ['awareness', 'present']),
-  node('uncertainty', 'trigger', 'Uncertainty', 180, 115, 'An unclear outcome or situation. Uncertainty is a context cue, not proof that something bad will happen.', '“I do not know what will happen next.”', '“Not knowing is uncomfortable, but it is not the same as danger.”', 0.7, 'mixed', ['context', 'ambiguity']),
+  node('uncertainty', 'context', 'Uncertainty', 180, 115, 'An unclear outcome or situation. Uncertainty is a context cue, not proof that something bad will happen.', '“I do not know what will happen next.”', '“Not knowing is uncomfortable, but it is not the same as danger.”', 0.7, 'mixed', ['context', 'ambiguity']),
   node('past-event', 'memory', 'Past event', 165, 660, 'A remembered event that may influence current meaning. Memories are reconstructive and context-sensitive.', '“I remember how that felt.”', '“This memory matters, but it is not the whole of my present.”', 0.63, 'mixed', ['memory', 'learning']),
   node('anxiety', 'emotion', 'Anxiety', 460, 120, 'An anticipatory emotional state often associated with uncertainty, threat appraisal and increased readiness to respond.', '“Something might go wrong. I need to prepare.”', '“I can check the actual evidence and decide what preparation is useful.”', 0.78, 'negative', ['anticipation', 'alert']),
   node('sadness', 'emotion', 'Sadness', 440, 700, 'An emotion that can accompany loss, disappointment or disconnection and may signal a need for care or adjustment.', '“Something meaningful feels missing.”', '“I can allow this feeling and identify what support or care would help.”', 0.56, 'negative', ['loss', 'care']),
