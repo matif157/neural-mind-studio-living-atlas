@@ -1,0 +1,50 @@
+{
+  "name": "neural-mind-studio-living-atlas",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "description": "Neural Mind Studio — Living Mind Atlas: a local-first, AI-assisted cognitive exploration and graph editor.",
+  "scripts": {
+    "dev": "concurrently -k -n web,api -c cyan,magenta \"vite --host 0.0.0.0\" \"tsx watch server/index.ts\"",
+    "dev:web": "vite --host 0.0.0.0",
+    "dev:api": "tsx watch server/index.ts",
+    "build": "tsc --noEmit && vite build",
+    "build:server": "tsc --noEmit",
+    "preview": "vite preview --host 0.0.0.0",
+    "start": "tsx server/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm test && npm run build"
+  },
+  "dependencies": {
+    "@google/genai": "^1.40.0",
+    "@xyflow/react": "^12.12.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.21.2",
+    "idb": "^8.0.3",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zod": "^3.25.76",
+    "zustand": "^5.1.0"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.3.0",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.15.30",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@types/supertest": "^6.0.3",
+    "@vitejs/plugin-react": "^6.3.0",
+    "concurrently": "^9.2.1",
+    "jsdom": "^26.1.0",
+    "supertest": "^7.1.4",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1"
+  }
+}
