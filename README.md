@@ -1,88 +1,114 @@
-# Neural Mind Studio
+# Neural Mind Studio — Living Mind Atlas
 
-A modular, editable mind-map and conceptual neural-network workspace. This is a full React + TypeScript application, not a single-file HTML demo.
+A local-first, React Flow-powered workspace for exploring thoughts, emotions, memories, beliefs, needs and behaviours as an **editable conceptual map**. An optional server-side AI companion produces structured reflections that you can review, edit and either accept as drafts or reject. Nothing is silently written into your graph.
 
-## What it is
+> This is an educational reflection tool. It is **not** a biological connectome, brain-reading system, diagnostic instrument, crisis service or clinical assessment.
 
-Neural Mind Studio lets you build a personal, editable graph connecting emotions, thoughts, memories, cognitive patterns, needs, body signals, behaviours, triggers, beliefs and context. Nodes are colour-coded; connections represent relationships that you define. The application includes a neuron anatomy explainer, example pathways, an editable relationship inspector, local autosave and portable project JSON.
-
-It is an educational and reflective visualization tool. It is **not** a biological connectome, direct brain-activity measurement, mind reader, psychological diagnosis or clinical assessment tool. Emotion colours and conceptual edges are explanatory design choices, not literal mappings to individual neurons or fixed brain regions.
-
-## Requirements
-
-- Node.js 22.12+ (recommended)
-- npm 10+
-
-## Run locally
+## Quick start
 
 ```bash
 npm install
+cp .env.example .env      # optional; offline mode works with no key
 npm run dev
 ```
 
-Open the local URL shown by Vite (normally `http://localhost:5173`). On macOS/Linux you can also run `./start-mac-linux.sh`; on Windows use `start-windows.bat`.
+Open `http://localhost:5173`. Vite proxies `/api` to the local Express server on port `8787`.
 
-## Build
+If you only want the editor, no API is required:
 
 ```bash
-npm run build
-npm run preview
+npm run dev:web
 ```
 
-## Editing the mind graph
+## Workspaces
 
-- Add nodes from the left palette.
-- Select a node to edit its type, label, description, inner voice, balanced voice, intensity, valence and tags in the inspector.
-- Drag nodes to move them. Hold Shift while dragging on the canvas to select an area; hold Shift while clicking to multi-select.
-- Drag from a node handle to another node to create a synaptic relationship.
-- Select a connection to edit its relationship type, weight and explanatory note.
-- Delete selected nodes or edges with Delete/Backspace.
-- Use Cut, Copy, Paste and Duplicate in the toolbar or keyboard shortcuts.
-- Undo/Redo works for graph edits, node moves, paste and delete operations.
-- The map autosaves to local browser storage. Export JSON for backups or to move the graph to another device; import a compatible project JSON to restore it.
+| | Workspace | What it does |
+|---|---|---|
+| A | **Living Mind Map** | Editable React Flow canvas with 18 node kinds, 22 relationship types, views, search, filters, grouping, locking, undo/redo, clipboard, import/export and a change log. |
+| B | **AI Conversation** | Text and voice input, consent gate, streaming status, safety banner, stored original wording, structured analysis review, editable responses and proposal approval. |
+| C | **Emotional Observatory** | Emotion vocabulary, self-rated intensity (never inferred), descriptive frequency and intensity trend. |
+| D | **Thought Explorer** | Thought-type vocabulary, recurring wording from your own reflections, inner voice and balanced voice editing. |
+| E | **Memory Atlas** | User-recorded memories and situations with provenance and evidence; no recovered or invented memories. |
+| F | **Pattern Intelligence** | Pattern hypotheses, descriptive graph loops, provenance overview and reflection timeline. |
+| G | **Reflection Studio** | 16 guided exercises with editable responses, saved reflections and node links. |
+| H | **Neuroscience Explorer** | Neuron anatomy explainer and knowledge domains; explicitly separates biological structures from conceptual nodes. |
+| I | **Knowledge Library** | Searchable taxonomy of clinical, psychological, therapeutic and cognitive fields with scope and limitations. |
+| J | **Settings & Data Control** | Consent, provider/model choice, session token, privacy toggles, theme, reduced motion, exports and data deletion. |
 
-## Keyboard shortcuts
+## AI providers
 
-| Shortcut | Action |
-|---|---|
-| Ctrl/Cmd + Z | Undo |
-| Ctrl/Cmd + Shift + Z or Ctrl/Cmd + Y | Redo |
-| Ctrl/Cmd + C | Copy selected nodes and internal connections |
-| Ctrl/Cmd + X | Cut selected nodes and internal connections |
-| Ctrl/Cmd + V | Paste selection |
-| Ctrl/Cmd + D | Duplicate selection |
-| Delete / Backspace | Delete selected graph elements |
-| Escape | Clear active scenario focus |
+Keys are read only by the Express server from `.env`; they are never sent to the browser. The browser keeps only an optional local API token in `sessionStorage`.
 
-## Project structure
+| Provider | Credential | Notes |
+|---|---|---|
+| `gemini` | `GEMINI_API_KEY` | Google GenAI SDK; default model `gemini-2.5-flash`. |
+| `openrouter` | `OPENROUTER_API_KEY` | OpenAI-compatible router. |
+| `deepseek` | `DEEPSEEK_API_KEY` | OpenAI-compatible DeepSeek endpoint. |
+| `local` | none | Any OpenAI-compatible endpoint such as Ollama or LM Studio. |
+| `offline` | none | Deterministic rule-based analysis with no network calls. Default until configured. |
 
-```text
-src/
-  components/   Custom neuron nodes, synapse edges, palette, inspector, anatomy modal, canvas, toolbar
-  data/         Starter graph and pathway examples
-  store/        Graph editing state, clipboard, history and project operations
-  types/        Node kinds, relationship types and typed project format
-  utils/        Portable project export/import validation
-  App.tsx       Application shell, local autosave and keyboard shortcuts
-  styles.css    Visual system and responsive layout
-```
+`MIND_AI_PROVIDER` picks the server default; `MIND_ALLOWED_PROVIDERS` restricts what clients may select. `MIND_API_TOKEN` enables bearer-token auth for the local API.
 
-## Extending the model
+### API
 
-1. Add new node kinds in `src/types/mind.ts` and define their colour, tint and icon metadata in `NODE_META`.
-2. Add the matching node icon in `MindNeuronNode.tsx` and `Palette.tsx`.
-3. Add starter nodes and edges in `src/data/seed.ts` or build an import JSON file.
-4. Add new relationship types to `MindRelation` and `RELATIONS`.
-5. Add a scenario in `src/data/scenarios.ts`; its `nodeIds` must refer to existing graph nodes.
+- `GET /api/health`
+- `GET /api/providers`
+- `GET /api/knowledge`
+- `POST /api/analyze`
+- `POST /api/analyze/stream` (SSE: `status`, `token`, `result`, `error`)
+- `POST /api/test-connection`
+
+Every request is validated with strict Zod schemas. Provider output is validated again, stripped of unstated intensity and disallowed relation/category endpoints, checked for diagnostic language, and given crisis support guidance when safety flags appear.
 
 ## Data and privacy
 
-The app has no backend and sends no graph data to a server. Autosave uses this browser's localStorage. Exported JSON is stored wherever you choose to save it. Avoid entering sensitive personal, medical or third-party information on a shared device.
+- Graph, conversations, analyses, exercise responses and settings are stored in IndexedDB on this device.
+- v1 project exports migrate automatically on import.
+- AI consent is off by default. No text is sent anywhere until you enable it.
+- Context sharing is separately controlled: approved/core nodes and recent user wording are off by default.
+- Original user wording is stored alongside, not replaced by, interpretations.
+- AI graph proposals become **draft** nodes only after you accept them; you can edit, confirm or reject them in the inspector.
+- `Settings & Data Control` can delete conversations, reset the map, export/import JSON or erase all local data.
+- Turning off “Keep reflections between sessions” stops persisting conversation history.
 
-## Verification
+## Safety boundaries
 
-Run the included graph and import validation tests with:
+The app will not:
 
-```bash
-npm test
+- diagnose, infer hidden memories, or claim biological measurement;
+- invent emotion intensity — it is charted only when you supplied it;
+- present a cognitive pattern as an established fact;
+- silently mutate the graph from AI output;
+- act as a crisis or emergency service.
+
+If text suggests immediate danger, self-harm or harm to others, the workspace shows a support reminder. In an emergency, contact local emergency services or go to the nearest emergency department.
+
+## Scripts
+
+| Script | Purpose |
+|---|---|
+| `npm run dev` | Vite + API together |
+| `npm run dev:web` | Editor only |
+| `npm run dev:api` | API only |
+| `npm run build` | Typecheck + production client build |
+| `npm run typecheck` | TypeScript only |
+| `npm test` | Vitest suite |
+| `npm run check` | Typecheck + tests + build |
+
+## Architecture
+
+```text
+shared/      Domain vocabulary, Zod schemas, taxonomy and strict AI JSON contract
+server/      Express API, auth, rate limits, provider adapters, safety/validation pipeline
+src/
+  components/  Canvas, nodes, edges, palette, inspector, conversation and 9 workspaces
+  lib/         API client, SSE parser, IndexedDB, longitudinal pattern utilities
+  store/       Zustand graph, conversation and UI state
+  data/        Starter graph and guided examples
+tests/       API, project file and pattern utility tests
+docs/        Scientific scope and verification report
 ```
+
+Keyboard shortcuts: `⌘/Ctrl Z` undo, `⌘/Ctrl ⇧ Z` redo, `⌘/Ctrl C/X/V` copy/cut/paste, `⌘/Ctrl D` duplicate, `Alt + 1–0` switch workspace, `?` show help, `Esc` clear focus.
+
+See `docs/SCIENTIFIC_MODEL.md` for conceptual scope and `docs/TEST_REPORT.md` for verification results.
