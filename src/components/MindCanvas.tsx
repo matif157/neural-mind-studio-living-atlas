@@ -100,7 +100,7 @@ function MindWorkspace({ onFitRef }: MindWorkspaceProps) {
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onNodeDragStart={captureHistory}
-          onBeforeDelete={() => { captureHistory(); return true; }}
+          onBeforeDelete={async () => { captureHistory(); return true; }}
           defaultEdgeOptions={{ type: 'neural', animated: true }}
           fitView
           fitViewOptions={{ padding: 0.22 }}
