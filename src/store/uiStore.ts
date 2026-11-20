@@ -21,6 +21,7 @@ interface UiState {
   bottomCollapsed: boolean;
   showHistory: boolean;
   showShortcuts: boolean;
+  selectedExerciseId: string;
   setWorkspace: (workspace: WorkspaceId) => void;
   setGraphView: (view: GraphViewId) => void;
   setQuery: (query: string) => void;
@@ -31,6 +32,7 @@ interface UiState {
   openContextMenu: (menu: ContextMenuState) => void;
   closeContextMenu: () => void;
   togglePanel: (panel: 'left' | 'right' | 'bottom' | 'history' | 'shortcuts') => void;
+  setSelectedExercise: (id: string) => void;
 }
 
 export const useUiStore = create<UiState>((set) => ({
@@ -46,6 +48,7 @@ export const useUiStore = create<UiState>((set) => ({
   bottomCollapsed: true,
   showHistory: false,
   showShortcuts: false,
+  selectedExerciseId: 'thought-record',
   setWorkspace: (workspace) => set({ workspace }),
   setGraphView: (graphView) => set({ graphView }),
   setQuery: (query) => set({ query }),
@@ -68,4 +71,5 @@ export const useUiStore = create<UiState>((set) => ({
     if (panel === 'history') return { showHistory: !state.showHistory };
     return { showShortcuts: !state.showShortcuts };
   }),
+  setSelectedExercise: (selectedExerciseId) => set({ selectedExerciseId }),
 }));

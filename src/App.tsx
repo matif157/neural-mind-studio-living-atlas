@@ -1,13 +1,31 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
-import { BrainCircuit, Check, CircleHelp, Command, Info } from 'lucide-react';
+import {
+  BrainCircuit, Check, CircleHelp, Command, Info, Keyboard, Moon, PanelBottom,
+  Sun, X,
+} from 'lucide-react';
+import {
+  AI_PROVIDER_META, APP_NAME, APP_SUBNAME, SCHEMA_VERSION, WORKSPACES,
+} from '@shared/domain';
+import {
+  aiAnalysisSchema, clientSettingsSchema, conversationEventSchema, exerciseStateSchema,
+  reflectionSchema,
+} from '@shared/schemas';
 import MindCanvas from './components/MindCanvas';
 import Toolbar from './components/Toolbar';
 import AnatomyModal from './components/AnatomyModal';
+import ConversationWorkspace from './components/conversation/ConversationWorkspace';
+import { EmotionObservatory, MemoryAtlas, PatternIntelligence, ThoughtExplorer } from './components/workspaces/InsightWorkspaces';
+import { KnowledgeLibrary, NeuroscienceExplorer, ReflectionStudio } from './components/workspaces/PracticeWorkspaces';
+import SettingsWorkspace from './components/workspaces/SettingsWorkspace';
+import { deleteLocal, readLocal, STORAGE_KEYS, writeLocal } from './lib/db';
+import { createProjectFile, downloadProjectFile, migrateProjectFile, validateProjectFile } from './utils/projectFile';
+import { useConversationStore } from './store/conversationStore';
 import { useMindStore } from './store/mindStore';
-import { createProjectFile, downloadProjectFile, validateProjectFile } from './utils/projectFile';
+import { useUiStore } from './store/uiStore';
+import { iconFor } from './components/iconFor';
+import type { Conversation, ProposalRecord } from './store/conversationStore';
+import type { StoredAnalysis } from './lib/patterns';
 import './styles.css';
-
-const STORAGE_KEY = 'neural-mind-studio-project-v1';
 
 function App() {
   const nodes = useMindStore((state) => state.nodes);
@@ -15,6 +33,7 @@ function App() {
   const past = useMindStore((state) => state.past);
   const future = useMindStore((state) => state.future);
   const running = useMindStore((state) => state.simulationRunning);
+  const changeLog = useMindStore((state) => state.changeLog);
   const undo = useMindStore((state) => state.undo);
   const redo = useMindStore((state) => state.redo);
   const copySelection = useMindStore((state) => state.copySelection);
@@ -25,6 +44,20 @@ function App() {
   const setSimulationRunning = useMindStore((state) => state.setSimulationRunning);
   const resetToStarter = useMindStore((state) => state.resetToStarter);
   const loadProject = useMindStore((state) => state.loadProject);
+  const settings = useConversationStore((state) => state.settings);
+  const conversations = useConversationStore((state) => state.conversations);
+  const events = useConversationStore((state) => state.events);
+  const hydrateConversation = useConversationStore((state) => state.hydrate);
+  const workspace = useUiStore((state) => state.workspace);
+  const setWorkspace = useUiStore((state) => state.setWorkspace);
+  const graphView = useUiStore((state) => state.graphView);
+  const setGraphView = useUiStore((state) => state.setGraphView);
+  const bottomCollapsed = useUiStore((state) => state.bottomCollapsed);
+  const showHistory = useUiStore((state) => state.showHistory);
+  const showShortcuts = useUiStore((state) => state.showShortcuts);
+  const togglePanel = useUiStore((state) => state.togglePanel);
+
+  const [ready, setReady] = useState(false);
   const [showAnatomy, setShowAnatomy] = useState(false);
   const [saved, setSaved] = useState(true);
   const [toast, setToast] = useState('');
@@ -35,29 +68,118 @@ function App() {
   const notify = useCallback((message: string) => {
     setToast(message);
     if (toastTimer.current) window.clearTimeout(toastTimer.current);
-    toastTimer.current = window.setTimeout(() => setToast(''), 2500);
+    toastTimer.current = window.setTimeout(() => setToast(''), 3000);
   }, []);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed: unknown = JSON.parse(raw);
-        if (validateProjectFile(parsed)) loadProject(parsed);
-      }
-    } catch {
-      notify('Saved workspace could not be restored. Starter map loaded.');
-    }
-    const unsubscribe = useMindStore.subscribe((state) => {
+    let cancelled = false;
+    const restore = async () => {
+      const [graphRaw, conversationRaw, settingsRaw] = await Promise.all([
+        readLocal<unknown>(STORAGE_KEYS.graph),
+        readLocal<Record<string, unknown>>(STORAGE_KEYS.conversation),
+        readLocal<unknown>(STORAGE_KEYS.settings),
+      ]);
+      let legacy: unknown = null;
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(createProjectFile(state.nodes, state.edges)));
-        setSaved(true);
-      } catch {
-        setSaved(false);
+        const stored = localStorage.getItem(STORAGE_KEYS.legacyGraph);
+        if (stored && !graphRaw) legacy = JSON.parse(stored) as unknown;
+      } catch { /* ignore corrupt legacy data */ }
+      const graphCandidate = graphRaw ?? legacy;
+      if (graphCandidate) {
+        const project = validateProjectFile(graphCandidate)
+          ? graphCandidate
+          : migrateProjectFile(graphCandidate);
+        if (project) loadProject(project);
       }
+      const parsedSettings = settingsRaw ? clientSettingsSchema.safeParse(settingsRaw) : null;
+      const safeSettings = parsedSettings?.success ? parsedSettings.data : undefined;
+      if (conversationRaw && typeof conversationRaw === 'object') {
+        const conversationsData = Array.isArray(conversationRaw.conversations)
+          ? (conversationRaw.conversations as Conversation[]).filter((item) => item && typeof item.id === 'string').slice(0, 100)
+          : [];
+        const eventsData = Array.isArray(conversationRaw.events)
+          ? conversationRaw.events.map((item) => conversationEventSchema.safeParse(item)).flatMap((result) => result.success ? [result.data] : []).slice(0, 20000)
+          : [];
+        const analysesData = Array.isArray(conversationRaw.analyses)
+          ? (conversationRaw.analyses as StoredAnalysis[]).flatMap((item) => {
+            const parsed = item && aiAnalysisSchema.safeParse(item.analysis);
+            return parsed?.success ? [{ ...item, analysis: parsed.data }] : [];
+          }).slice(0, 5000)
+          : [];
+        const proposalsData = Array.isArray(conversationRaw.proposals)
+          ? (conversationRaw.proposals as ProposalRecord[]).filter((item) => item && typeof item.id === 'string' && item.payload && typeof item.payload === 'object').slice(0, 10000)
+          : [];
+        const exercisesData = conversationRaw.exerciseStates && typeof conversationRaw.exerciseStates === 'object'
+          ? Object.fromEntries(Object.entries(conversationRaw.exerciseStates).flatMap(([key, value]) => {
+            const parsed = exerciseStateSchema.safeParse(value);
+            return parsed.success ? [[key, parsed.data]] : [];
+          }))
+          : {};
+        const reflectionsData = Array.isArray(conversationRaw.reflections)
+          ? conversationRaw.reflections.map((item) => reflectionSchema.safeParse(item)).flatMap((result) => result.success ? [result.data] : []).slice(0, 5000)
+          : [];
+        hydrateConversation({
+          conversations: conversationsData,
+          activeConversationId: typeof conversationRaw.activeConversationId === 'string' ? conversationRaw.activeConversationId : (conversationsData[0]?.id ?? ''),
+          events: eventsData,
+          analyses: analysesData,
+          proposals: proposalsData,
+          exerciseStates: exercisesData,
+          reflections: reflectionsData,
+          settings: safeSettings,
+        });
+      } else if (safeSettings) {
+        hydrateConversation({ settings: safeSettings });
+      } else {
+        hydrateConversation({});
+      }
+      if (!cancelled) setReady(true);
+    };
+    void restore();
+    return () => { cancelled = true; };
+  }, [hydrateConversation, loadProject]);
+
+  useEffect(() => {
+    if (!ready) return undefined;
+    let graphTimer: number | undefined;
+    let conversationTimer: number | undefined;
+    const saveGraph = (state: ReturnType<typeof useMindStore.getState>) => {
+      window.clearTimeout(graphTimer);
+      setSaved(false);
+      graphTimer = window.setTimeout(() => {
+        const meta = {
+          title: 'Living Mind Atlas',
+          description: 'Personal conceptual map — not a clinical or biological model.',
+          customCategories: state.customCategories,
+          customRelations: state.customRelations,
+        };
+        void writeLocal(STORAGE_KEYS.graph, createProjectFile(state.nodes, state.edges, meta)).then((ok) => setSaved(ok));
+      }, 500);
+    };
+    const unsubscribeMind = useMindStore.subscribe(saveGraph);
+    const unsubscribeConversation = useConversationStore.subscribe((state) => {
+      window.clearTimeout(conversationTimer);
+      setSaved(false);
+      conversationTimer = window.setTimeout(() => {
+        void writeLocal(STORAGE_KEYS.settings, state.settings);
+        if (state.settings.longTermMemory) {
+          void writeLocal(STORAGE_KEYS.conversation, {
+            conversations: state.conversations, activeConversationId: state.activeConversationId,
+            events: state.events, analyses: state.analyses, proposals: state.proposals,
+            exerciseStates: state.exerciseStates, reflections: state.reflections,
+          }).then((ok) => setSaved(ok));
+        } else {
+          void deleteLocal(STORAGE_KEYS.conversation).then(() => setSaved(true));
+        }
+      }, 700);
     });
-    return () => unsubscribe();
-  }, [loadProject, notify]);
+    return () => {
+      unsubscribeMind();
+      unsubscribeConversation();
+      window.clearTimeout(graphTimer);
+      window.clearTimeout(conversationTimer);
+    };
+  }, [ready]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -71,92 +193,168 @@ function App() {
       else if (mod && event.key.toLowerCase() === 'x') { event.preventDefault(); cutSelection(); notify('Selection cut'); }
       else if (mod && event.key.toLowerCase() === 'v') { event.preventDefault(); pasteClipboard(); notify('Selection pasted'); }
       else if (mod && event.key.toLowerCase() === 'd') { event.preventDefault(); duplicateSelection(); notify('Selection duplicated'); }
-      else if (event.key === 'Escape') { useMindStore.getState().setActiveScenario(null); }
+      else if (event.key === 'Escape') { useMindStore.getState().setActiveScenario(null); useUiStore.getState().closeContextMenu(); }
+      else if (event.key === '?') togglePanel('shortcuts');
+      else if (event.altKey && /^[0-9]$/.test(event.key)) {
+        const index = event.key === '0' ? 9 : Number(event.key) - 1;
+        const next = WORKSPACES[index];
+        if (next) { event.preventDefault(); setWorkspace(next.id); }
+      }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [copySelection, cutSelection, duplicateSelection, notify, pasteClipboard, redo, undo]);
+  }, [copySelection, cutSelection, duplicateSelection, notify, pasteClipboard, redo, togglePanel, undo, setWorkspace]);
 
-  const exportProject = () => {
-    downloadProjectFile(createProjectFile(nodes, edges));
-    notify('Project JSON exported');
-  };
-
+  const exportProject = () => { downloadProjectFile(createProjectFile(nodes, edges)); notify('Graph exported as JSON'); };
   const importProject = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
     try {
       const parsed: unknown = JSON.parse(await file.text());
-      if (!validateProjectFile(parsed)) throw new Error('Invalid project structure or unsupported schema.');
-      loadProject(parsed);
-      notify(`Imported ${parsed.nodes.length} nodes and ${parsed.edges.length} synapses`);
-    } catch (error) {
-      notify(error instanceof Error ? error.message : 'Could not import this file');
-    } finally {
-      event.target.value = '';
-    }
-  };
-
-  const toggleSimulation = () => setSimulationRunning(!running);
-  const reset = () => {
-    if (window.confirm('Reset the current mind map to the starter example? Export your work first if you need a backup.')) {
-      resetToStarter();
-      notify('Starter map restored');
-    }
+      const project = validateProjectFile(parsed) ? parsed : migrateProjectFile(parsed);
+      if (!project) throw new Error('Invalid project structure or unsupported schema.');
+      loadProject(project);
+      notify(`Imported ${project.nodes.length} nodes and ${project.edges.length} links`);
+    } catch (cause) { notify(cause instanceof Error ? cause.message : 'Could not import this file'); }
+    finally { event.target.value = ''; }
   };
   const setFitCallback = useCallback((fit: () => void) => { fitRef.current = fit; }, []);
+  const workspaceLabel = WORKSPACES.find((item) => item.id === workspace)?.label ?? APP_SUBNAME;
+
+  const renderWorkspace = () => {
+    switch (workspace) {
+      case 'atlas': return <MindCanvas onFitRef={setFitCallback} />;
+      case 'conversation': return <ConversationWorkspace notify={notify} />;
+      case 'emotions': return <EmotionObservatory notify={notify} />;
+      case 'thoughts': return <ThoughtExplorer notify={notify} />;
+      case 'memories': return <MemoryAtlas notify={notify} />;
+      case 'patterns': return <PatternIntelligence notify={notify} />;
+      case 'reflection': return <ReflectionStudio notify={notify} />;
+      case 'neuroscience': return <NeuroscienceExplorer notify={notify} />;
+      case 'library': return <KnowledgeLibrary notify={notify} />;
+      case 'settings': return <SettingsWorkspace notify={notify} />;
+      default: return null;
+    }
+  };
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell theme-${settings.theme} ${settings.reducedMotion || !running ? 'reduced-motion' : ''}`}>
       <header className="app-header">
         <div className="brand-lockup">
           <div className="brand-mark"><BrainCircuit size={23} strokeWidth={1.75} /></div>
-          <div className="brand-copy"><div className="brand-title">NEURAL MIND <span>STUDIO</span></div><div className="brand-subtitle">A visual workspace for cognition & emotion</div></div>
+          <div className="brand-copy"><div className="brand-title">{APP_NAME} <span>{APP_SUBNAME}</span></div><div className="brand-subtitle">{workspaceLabel}</div></div>
         </div>
-        <div className="header-center"><span className="header-signal" /> CONCEPTUAL MIND MODEL <span className="header-slash">/</span> EDITABLE NEURAL MAP</div>
+        <nav className="workspace-nav" aria-label="Workspaces">
+          {WORKSPACES.map((item) => {
+            const Icon = iconFor(item.id === 'atlas' ? 'circle' : item.id === 'conversation' ? 'users' : item.id === 'emotions' ? 'heart' : item.id === 'thoughts' ? 'lightbulb' : item.id === 'memories' ? 'brain' : item.id === 'patterns' ? 'repeat' : item.id === 'reflection' ? 'check' : item.id === 'neuroscience' ? 'pulse' : item.id === 'library' ? 'book' : 'shield');
+            return <button key={item.id} className={`workspace-tab ${workspace === item.id ? 'active' : ''}`} onClick={() => setWorkspace(item.id)} aria-current={workspace === item.id ? 'page' : undefined} title={`${item.key} · ${item.label}`}><Icon size={14} /><span>{item.short}</span></button>;
+          })}
+        </nav>
         <div className="header-actions">
-          <div className={`save-state ${saved ? 'is-saved' : 'is-unsaved'}`}><span />{saved ? 'Saved locally' : 'Storage unavailable'}</div>
-          <button className="header-help" onClick={() => setShowAnatomy(true)} title="About the model"><CircleHelp size={17} /></button>
+          <div className={`save-state ${saved ? 'is-saved' : 'is-unsaved'}`}><span />{saved ? 'Saved locally' : 'Saving…'}</div>
+          <button className="header-help" onClick={() => setSettingsTheme()} title="Toggle theme" aria-label="Toggle theme">{settings.theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}</button>
+          <button className="header-help" onClick={() => togglePanel('shortcuts')} title="Shortcuts" aria-label="Show shortcuts"><Keyboard size={16} /></button>
+          <button className="header-help" onClick={() => setShowAnatomy(true)} title="About the model" aria-label="About the model"><CircleHelp size={17} /></button>
         </div>
       </header>
 
-      <section className="title-strip">
-        <div><div className="title-eyebrow">PERSONAL COGNITIVE WORKSPACE <span>•</span> VERSION 0.1</div><h1>Map what moves <em>the mind.</em></h1><p>Explore relationships between emotional states, thoughts, memories, needs and the responses that follow.</p></div>
-        <div className="title-stat-row"><div className="title-stat"><strong>{nodes.length}</strong><span>NEURAL NODES</span></div><div className="title-stat"><strong>{edges.length}</strong><span>SYNAPTIC LINKS</span></div><div className="title-stat"><strong>09</strong><span>NODE CLASSES</span></div></div>
-      </section>
+      {workspace === 'atlas' && (
+        <>
+          <section className="title-strip">
+            <div><div className="title-eyebrow">PERSONAL COGNITIVE WORKSPACE <span>•</span> SCHEMA V{SCHEMA_VERSION}</div><h1>Map what moves <em>the mind.</em></h1><p>Explore relationships between emotional states, thoughts, memories, needs and the responses that follow.</p></div>
+            <div className="title-stat-row">
+              <div className="title-stat"><strong>{nodes.length}</strong><span>MIND NODES</span></div>
+              <div className="title-stat"><strong>{edges.length}</strong><span>LINKS</span></div>
+              <div className="title-stat"><strong>{Object.keys(AI_PROVIDER_META).length}</strong><span>AI ADAPTERS</span></div>
+            </div>
+          </section>
+          <div className="view-strip">
+            <span className="view-kicker">VIEWS</span>
+            {([['whole', 'Whole mind'], ['emotion', 'Emotions'], ['thought', 'Thoughts'], ['pattern', 'Patterns'], ['memory', 'Memories'], ['behavior', 'Behaviour'], ['timeline', 'Timeline'], ['neural', 'Anatomy']] as const).map(([view, label]) => (
+              <button key={view} className={`view-chip ${graphView === view ? 'active' : ''}`} onClick={() => setGraphView(view)}>{label}</button>
+            ))}
+          </div>
+          <Toolbar
+            canUndo={past.length > 0}
+            canRedo={future.length > 0}
+            running={running}
+            onUndo={undo}
+            onRedo={redo}
+            onCopy={() => { copySelection(); notify('Selection copied'); }}
+            onCut={() => { cutSelection(); notify('Selection cut'); }}
+            onPaste={() => { pasteClipboard(); notify('Selection pasted'); }}
+            onDuplicate={() => { duplicateSelection(); notify('Selection duplicated'); }}
+            onDelete={() => { deleteSelection(); notify('Selected elements removed'); }}
+            onToggleRunning={() => setSimulationRunning(!running)}
+            onExport={exportProject}
+            onImport={() => fileInput.current?.click()}
+            onReset={() => { if (window.confirm('Reset the current mind map to the starter example? Export your work first if you need a backup.')) { resetToStarter(); notify('Starter map restored'); } }}
+            onAnatomy={() => setShowAnatomy(true)}
+            onFit={() => fitRef.current()}
+          />
+          <input ref={fileInput} type="file" accept="application/json,.json" hidden onChange={importProject} />
+        </>
+      )}
 
-      <Toolbar
-        canUndo={past.length > 0}
-        canRedo={future.length > 0}
-        running={running}
-        onUndo={undo}
-        onRedo={redo}
-        onCopy={() => { copySelection(); notify('Selection copied'); }}
-        onCut={() => { cutSelection(); notify('Selection cut'); }}
-        onPaste={() => { pasteClipboard(); notify('Selection pasted'); }}
-        onDuplicate={() => { duplicateSelection(); notify('Selection duplicated'); }}
-        onDelete={() => { deleteSelection(); notify('Selected elements removed'); }}
-        onToggleRunning={toggleSimulation}
-        onExport={exportProject}
-        onImport={() => fileInput.current?.click()}
-        onReset={reset}
-        onAnatomy={() => setShowAnatomy(true)}
-        onFit={() => fitRef.current()}
-      />
-      <input ref={fileInput} type="file" accept="application/json,.json" hidden onChange={importProject} />
+      <main className="workspace-host">{ready ? renderWorkspace() : <div className="loading-state">Restoring your local workspace…</div>}</main>
 
-      <MindCanvas onFitRef={setFitCallback} />
+      <div className={`timeline-drawer ${bottomCollapsed ? 'collapsed' : ''}`}>
+        <button className="timeline-handle" onClick={() => togglePanel('bottom')} aria-expanded={!bottomCollapsed}>
+          <PanelBottom size={13} /> Timeline & change log <span>{changeLog.length} changes · {events.length} events</span><ChevronIcon collapsed={bottomCollapsed} />
+        </button>
+        {!bottomCollapsed && (
+          <div className="timeline-content">
+            {changeLog.slice(0, 20).map((entry) => <div key={entry.id}><span>{new Date(entry.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span><strong>{entry.action}</strong><small>{entry.detail}</small></div>)}
+            {changeLog.length === 0 && <p>No graph changes recorded yet.</p>}
+          </div>
+        )}
+      </div>
 
       <footer className="app-footer">
-        <div className="footer-left"><span className="footer-dot" /> LOCAL WORKSPACE <span className="footer-divider">/</span> YOUR MAP STAYS ON THIS DEVICE</div>
-        <div className="footer-right"><span><Command size={12} /> Z undo</span><span><Command size={12} /> C copy</span><span><Command size={12} /> V paste</span><span>SHIFT + DRAG select</span></div>
+        <div className="footer-left"><span className="footer-dot" /> LOCAL-FIRST WORKSPACE <span className="footer-divider">/</span> {conversations.length} conversation(s) <span className="footer-divider">/</span> YOUR DATA STAYS ON THIS DEVICE</div>
+        <div className="footer-right"><span><Command size={12} /> Z undo</span><span><Command size={12} /> C copy</span><span><Command size={12} /> V paste</span><span>ALT + 1–0 workspaces</span></div>
       </footer>
 
-      {toast && <div className="toast-message"><Check size={15} /> {toast}</div>}
+      {toast && <div className="toast-message" role="status"><Check size={15} /> {toast}</div>}
       {showAnatomy && <AnatomyModal onClose={() => setShowAnatomy(false)} />}
+      {showHistory && (
+        <div className="modal-backdrop" onClick={() => togglePanel('history')}>
+          <div className="modal-card wide-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-head"><h2>Full change log</h2><button className="icon-button" onClick={() => togglePanel('history')} aria-label="Close"><X size={16} /></button></div>
+            <div className="modal-list">
+              {changeLog.map((entry) => <div key={entry.id}><span>{new Date(entry.at).toLocaleString()}</span><strong>{entry.action}</strong><small>{entry.detail} · {entry.nodeCount} nodes / {entry.edgeCount} links</small></div>)}
+            </div>
+          </div>
+        </div>
+      )}
+      {showShortcuts && (
+        <div className="modal-backdrop" onClick={() => togglePanel('shortcuts')}>
+          <div className="modal-card" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-head"><h2>Keyboard shortcuts</h2><button className="icon-button" onClick={() => togglePanel('shortcuts')} aria-label="Close"><X size={16} /></button></div>
+            <div className="shortcut-list">
+              <div><kbd>⌘/Ctrl Z</kbd><span>Undo</span></div>
+              <div><kbd>⌘/Ctrl ⇧ Z</kbd><span>Redo</span></div>
+              <div><kbd>⌘/Ctrl C / X / V</kbd><span>Copy / cut / paste</span></div>
+              <div><kbd>⌘/Ctrl D</kbd><span>Duplicate selection</span></div>
+              <div><kbd>Shift + drag</kbd><span>Multi-select</span></div>
+              <div><kbd>Alt + 1–0</kbd><span>Switch workspace</span></div>
+              <div><kbd>?</kbd><span>Show this help</span></div>
+              <div><kbd>Esc</kbd><span>Clear focus / menus</span></div>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="scientific-disclaimer"><Info size={12} /> Educational conceptual simulation — not a biological connectome, mind reader or diagnostic instrument.</div>
     </div>
   );
+
+  function setSettingsTheme() {
+    useConversationStore.getState().setSettings({ theme: settings.theme === 'dark' ? 'light' : 'dark' });
+  }
+}
+
+function ChevronIcon({ collapsed }: { collapsed: boolean }) {
+  return <span className={`timeline-chevron ${collapsed ? '' : 'open'}`}>⌃</span>;
 }
 
 export default App;

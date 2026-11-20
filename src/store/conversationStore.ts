@@ -51,8 +51,11 @@ interface ConversationState {
   saveExerciseState: (state: ExerciseState) => void;
   saveReflection: (reflection: Reflection) => void;
   deleteEvent: (id: string) => void;
+  updateEventText: (id: string, text: string) => void;
+  updateAnalysis: (id: string, patch: Partial<AiAnalysis>) => void;
   setStreaming: (patch: Partial<ConversationState['streaming']>) => void;
   hydrate: (data: Partial<Pick<ConversationState, 'conversations' | 'activeConversationId' | 'events' | 'analyses' | 'proposals' | 'settings' | 'exerciseStates' | 'reflections'>>) => void;
+  clearConversationsOnly: () => void;
   clearAll: () => void;
 }
 
@@ -148,9 +151,24 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
     proposals: state.proposals.filter((proposal) => proposal.eventId !== eventId),
   })),
 
+  updateEventText: (eventId, text) => set((state) => ({
+    events: state.events.map((event) => event.id === eventId ? { ...event, text } : event),
+  })),
+
+  updateAnalysis: (analysisId, patch) => set((state) => ({
+    analyses: state.analyses.map((record) => record.id === analysisId
+      ? { ...record, analysis: { ...record.analysis, ...patch } }
+      : record),
+  })),
+
   setStreaming: (patch) => set((state) => ({ streaming: { ...state.streaming, ...patch } })),
 
   hydrate: (data) => set({ ...data, hydrated: true }),
+
+  clearConversationsOnly: () => set({
+    conversations: [], activeConversationId: '', events: [], analyses: [], proposals: [],
+    exerciseStates: {}, reflections: [], streaming: { active: false, text: '', status: '' },
+  }),
 
   clearAll: () => set({
     conversations: [], activeConversationId: '', events: [], analyses: [], proposals: [],
