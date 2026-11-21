@@ -21,7 +21,7 @@ import { suggestLinksForText, timelineGroups } from '../../lib/connectionDiscove
 import { cognitiveLoops, thoughtRecurrence } from '../../lib/patterns';
 import { deleteLocal, STORAGE_KEYS } from '../../lib/db';
 import { createProjectFile } from '../../utils/projectFile';
-import { displayLabel, isNodeDisplayable, isNodeMasked, sensitivityOf } from '../../utils/privacy';
+import { displayLabel, effectivePrivacy, isNodeDisplayable, isNodeMasked, privacyPatch, sensitivityOf, type EffectivePrivacy } from '../../utils/privacy';
 import { EmptyState, nextNodePosition, WorkspaceIntro } from '../../lib/workspaceUtils';
 
 interface Props { notify: (message: string) => void }
@@ -937,10 +937,10 @@ export function PrivacyControls({ notify }: Props) {
           </div>
           <div className="card-head spaced"><h3>Change an individual record</h3><span className="chip">Editable</span></div>
           <div className="node-record-list">
-            {nodes.filter((node) => node.data.sensitivity !== 'standard').slice(0, 30).map((node) => (
+            {nodes.filter((node) => effectivePrivacy(node) !== 'standard').slice(0, 30).map((node) => (
               <div className="node-record" key={node.id}>
                 <div className="node-record-head"><strong>{labelOf(node, view)}</strong><span className="chip">{node.data.kind}</span></div>
-                <select aria-label={`Privacy level for ${node.data.label}`} value={sensitivityOf(node)} onChange={(event) => updateNode(node.id, { sensitivity: event.target.value as MindNodeData['sensitivity'] }, 'Privacy level changed')}>
+                <select aria-label={`Privacy level for ${node.data.label}`} value={sensitivityOf(node)} onChange={(event) => updateNode(node.id, privacyPatch(event.target.value as EffectivePrivacy), 'Privacy level changed')}>
                   {(['standard', 'private', 'sensitive', 'restricted'] as const).map((level) => <option key={level} value={level}>{level}</option>)}
                 </select>
               </div>

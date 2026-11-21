@@ -13,7 +13,10 @@ import {
 import { useMindStore } from '../src/store/mindStore';
 import type { MindNode } from '../src/types/mind';
 import { createProjectFile, validateProjectFile } from '../src/utils/projectFile';
-import { displayLabel, isNodeDisplayable, isNodeMasked, sensitivityOf } from '../src/utils/privacy';
+import {
+  displayLabel, effectivePrivacy, isNodeDisplayable, isNodeMasked,
+  privacyPatch, sensitivityOf,
+} from '../src/utils/privacy';
 
 type NodeInput = { label: string; kind: MindNodeKind } & Record<string, unknown>;
 
@@ -166,6 +169,21 @@ describe('shared privacy rules', () => {
     expect(isNodeMasked(restricted, view)).toBe(false);
     expect(sensitivityOf({ data: { label: 'Unclassified thought', kind: 'thought' } })).toBe('private');
     expect(sensitivityOf({ data: { label: 'Unclassified emotion', kind: 'emotion' } })).toBe('standard');
+  });
+
+  it('resolves both privacy vocabularies to the stricter level and writes one choice back', () => {
+    const privateStorage = makeNode('p', { label: 'Stored privately', kind: 'memory', privacy: 'private', sensitivity: 'standard' });
+    const restrictedDisplay = makeNode('r', { label: 'Display restricted', kind: 'memory', privacy: 'private', sensitivity: 'restricted' });
+    const sensitiveStorage = makeNode('s', { label: 'Storage sensitive', kind: 'emotion', privacy: 'sensitive', sensitivity: 'standard' });
+
+    expect(effectivePrivacy(privateStorage)).toBe('standard');
+    expect(effectivePrivacy(restrictedDisplay)).toBe('restricted');
+    expect(effectivePrivacy(sensitiveStorage)).toBe('sensitive');
+    expect(isNodeDisplayable(restrictedDisplay, view)).toBe(false);
+    expect(privacyPatch('standard')).toEqual({ privacy: 'private', sensitivity: 'standard' });
+    expect(privacyPatch('private')).toEqual({ privacy: 'private', sensitivity: 'private' });
+    expect(privacyPatch('sensitive')).toEqual({ privacy: 'sensitive', sensitivity: 'sensitive' });
+    expect(privacyPatch('restricted')).toEqual({ privacy: 'restricted', sensitivity: 'restricted' });
   });
 
   it('respects session reveal, private mode and hidden categories', () => {

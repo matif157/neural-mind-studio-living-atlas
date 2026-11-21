@@ -4,6 +4,7 @@ import {
 } from '@shared/dimensions';
 import type { PrivacyLevel } from '@shared/domain';
 import type { MindEdge, MindNode } from '../types/mind';
+import { effectivePrivacy } from '../utils/privacy';
 
 export type CameraPreset = 'front' | 'side' | 'top' | 'iso';
 
@@ -20,16 +21,13 @@ export function nodePrivacy(node: MindNode): PrivacyLevel {
 }
 
 /**
- * Both vocabularies must agree before wording leaves secure view: the original
- * storage `privacy` boundary and the v3 display `sensitivity` level. Imported
- * and personal records can set `sensitivity: 'restricted'` without changing the
- * default `privacy`, so checking either field alone can expose protected text.
+ * Both vocabularies must agree before wording leaves secure view. `private`
+ * is the default local storage state and stays visible; `private` sensitivity
+ * on a thought is masked in the full 3D workspace, so the accessible universe
+ * applies the same effective level rather than reading `privacy` alone.
  */
 function isProtectedOutsideSecureView(node: MindNode): boolean {
-  const privacy = nodePrivacy(node);
-  if (privacy === 'sensitive' || privacy === 'restricted') return true;
-  const sensitivity = node.data.sensitivity;
-  return sensitivity === 'sensitive' || sensitivity === 'restricted';
+  return effectivePrivacy(node) !== 'standard';
 }
 
 export function nodeDimension(node: MindNode): PersonalDimensionId {

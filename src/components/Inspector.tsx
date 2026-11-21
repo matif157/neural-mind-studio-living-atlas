@@ -5,14 +5,14 @@ import {
 } from 'lucide-react';
 import {
   CONFIDENCE_BANDS, EVIDENCE_CLASSES, MIND_DIMENSIONS, MIND_RELATIONS, NODE_STATUSES,
-  PRIVACY_LEVELS, PROVENANCE_LABELS, SENSITIVITY_LEVELS, SUGGESTION_STATUSES,
+  PROVENANCE_LABELS, SENSITIVITY_LEVELS, SUGGESTION_STATUSES,
   TEMPORAL_STATUSES, TIMELINE_ERAS, VALENCES,
-  type EvidenceClass, type MindRelation, type PrivacyLevel, type Provenance,
-  type SensitivityLevel,
+  type EvidenceClass, type MindRelation, type Provenance,
 } from '@shared/domain';
 import { useMindStore } from '../store/mindStore';
 import { useUiStore } from '../store/uiStore';
 import { displayLabel, isSignalEdge } from '../lib/mind3d';
+import { effectivePrivacy, privacyPatch, type EffectivePrivacy } from '../utils/privacy';
 import { sourceForNode, useImportStore } from '../store/importStore';
 import {
   getMindNodeColor, NODE_META, type MindEdge, type MindNode,
@@ -187,7 +187,8 @@ function Inspector({ selectedNode, selectedEdge }: InspectorProps) {
   const custom = draft.customKind ? customCategories.find((item) => item.id === draft.customKind) : undefined;
   const nodeColor = custom?.color ?? getMindNodeColor(draft);
 
-  if (!secureView && (draft.privacy === 'sensitive' || draft.privacy === 'restricted')) {
+  const privacyLevel = effectivePrivacy({ data: draft });
+  if (!secureView && (privacyLevel === 'sensitive' || privacyLevel === 'restricted')) {
     return (
       <aside className="side-panel inspector-panel inspector-empty" data-testid="privacy-gate">
         <div className="panel-kicker">PROTECTED ENTRY</div>
@@ -234,12 +235,10 @@ function Inspector({ selectedNode, selectedEdge }: InspectorProps) {
         </select>
       )}
       <label className="field-label">Privacy boundary</label>
-      <select className="field-control" value={draft.privacy ?? 'private'} onChange={(event) => patch({ privacy: event.target.value as PrivacyLevel })}>
-        {PRIVACY_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}
+      <select className="field-control" value={privacyLevel} onChange={(event) => patch(privacyPatch(event.target.value as EffectivePrivacy))}>
+        {SENSITIVITY_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}
       </select>
-      {!secureView && (draft.privacy === 'sensitive' || draft.privacy === 'restricted') && (
-        <div className="privacy-notice">Hidden from ordinary 3D exploration. Enable secure view to review this entry.</div>
-      )}
+      <p className="muted-note">One choice sets both the local storage boundary and the 3D display level. Private and sensitive concepts are masked until revealed for a session; restricted concepts never appear in ordinary views. Masking is not encryption.</p>
       <label className="toggle-row compact-toggle">
         <input type="checkbox" checked={draft.safetySignal ?? false} onChange={(event) => patch({ safetySignal: event.target.checked })} />
         <span><strong>Danger signal</strong><small>Keep exact words for safety context only; never treat as identity.</small></span>
@@ -276,11 +275,6 @@ function Inspector({ selectedNode, selectedEdge }: InspectorProps) {
         </div>
       </div>
       {draft.confidence !== null && <p className="confidence-note">Interpretation confidence: {Math.round(draft.confidence * 100)}% (not a clinical probability)</p>}
-      <label className="field-label">Privacy level</label>
-      <select className="field-control" value={draft.sensitivity} onChange={(event) => patch({ sensitivity: event.target.value as SensitivityLevel })}>
-        {SENSITIVITY_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}
-      </select>
-      <p className="muted-note">Private and sensitive concepts are masked until revealed for a session. Restricted concepts never appear in standard 2D/3D views.</p>
       <div className="inspector-section-title">Personal atlas context</div>
       <div className="field-grid">
         <div><label className="field-label">Primary dimension</label>

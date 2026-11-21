@@ -1,7 +1,9 @@
-import type { MindNodeKind, SensitivityLevel } from '@shared/domain';
+import type { MindNodeKind, PrivacyLevel, SensitivityLevel } from '@shared/domain';
 
 export interface PrivacyView {
   revealSensitive: boolean;
+  /** 2D secure review only. The 3D atlas never sets this: restricted stays excluded there. */
+  revealRestricted?: boolean;
   privateMode: boolean;
   hiddenKinds: MindNodeKind[];
 }
@@ -11,14 +13,45 @@ export interface PrivacyNode {
   data: {
     label: string;
     kind: MindNodeKind;
+    /** Original storage/sharing boundary. */
+    privacy?: PrivacyLevel;
+    /** v3 display classification. */
     sensitivity?: SensitivityLevel;
   };
 }
 
+/**
+ * The app stores two privacy vocabularies for export compatibility: the
+ * original `privacy` boundary and the v3 `sensitivity` level. Every view must
+ * use the stricter of the two. `public`/`private` storage is the normal local
+ * state and maps to `standard` display, so seed and new nodes stay visible.
+ */
+const PRIVACY_RANK: Record<PrivacyLevel, number> = {
+  public: 0, private: 0, sensitive: 2, restricted: 3,
+};
+const SENSITIVITY_RANK: Record<SensitivityLevel, number> = {
+  standard: 0, private: 1, sensitive: 2, restricted: 3,
+};
+const EFFECTIVE_ORDER: SensitivityLevel[] = ['standard', 'private', 'sensitive', 'restricted'];
+
+export type EffectivePrivacy = SensitivityLevel;
+
+export function effectivePrivacy(node: PrivacyNode): EffectivePrivacy {
+  const privacy = PRIVACY_RANK[node.data.privacy ?? 'private'];
+  const sensitivity = SENSITIVITY_RANK[node.data.sensitivity ?? (node.data.kind === 'thought' ? 'private' : 'standard')];
+  return EFFECTIVE_ORDER[Math.max(privacy, sensitivity)];
+}
+
+/** One user-facing choice is written to both fields so exports stay compatible. */
+export function privacyPatch(level: EffectivePrivacy): { privacy: PrivacyLevel; sensitivity: SensitivityLevel } {
+  return {
+    privacy: level === 'sensitive' || level === 'restricted' ? level : 'private',
+    sensitivity: level,
+  };
+}
+
 export function sensitivityOf(node: PrivacyNode): SensitivityLevel {
-  const value = node.data.sensitivity;
-  if (value === 'standard' || value === 'private' || value === 'sensitive' || value === 'restricted') return value;
-  return node.data.kind === 'thought' ? 'private' : 'standard';
+  return effectivePrivacy(node);
 }
 
 /**
@@ -27,8 +60,8 @@ export function sensitivityOf(node: PrivacyNode): SensitivityLevel {
  * or, in private mode, withheld entirely. Masking is not encryption.
  */
 export function isNodeDisplayable(node: PrivacyNode, view: PrivacyView): boolean {
-  const level = sensitivityOf(node);
-  if (level === 'restricted') return false;
+  const level = effectivePrivacy(node);
+  if (level === 'restricted' && !view.revealRestricted) return false;
   if (view.hiddenKinds.includes(node.data.kind)) return false;
   if (view.privateMode && level !== 'standard') return false;
   return true;
@@ -36,7 +69,7 @@ export function isNodeDisplayable(node: PrivacyNode, view: PrivacyView): boolean
 
 export function isNodeMasked(node: PrivacyNode, view: PrivacyView): boolean {
   if (!isNodeDisplayable(node, view)) return false;
-  const level = sensitivityOf(node);
+  const level = effectivePrivacy(node);
   return (level === 'private' || level === 'sensitive') && !view.revealSensitive;
 }
 

@@ -19,7 +19,7 @@ import { useConversationStore } from '../store/conversationStore';
 import { useUiStore } from '../store/uiStore';
 import { isNodeDisplayable, isNodeMasked, type PrivacyView } from '../utils/privacy';
 import { scenarios } from '../data/scenarios';
-import { isSignalEdge, nodeDimension, nodePrivacy } from '../lib/mind3d';
+import { isSignalEdge, nodeDimension } from '../lib/mind3d';
 import { getMindNodeColor, NODE_META, type MindEdge, type MindNode, type MindNodeKind } from '../types/mind';
 
 const nodeTypes = { mind: MindNeuronNode };
@@ -57,10 +57,14 @@ function MindWorkspace({ onFitRef }: MindWorkspaceProps) {
   const scenario = scenarios.find((item) => item.id === activeScenario);
   const view = GRAPH_VIEWS.find((item) => item.id === graphView) ?? GRAPH_VIEWS[0];
   const privacyView = useMemo<PrivacyView>(() => ({
-    revealSensitive: sensitiveContentVisible,
+    // Either the stored reveal flag or the session secure-view toggle may expose
+    // protected wording. Both vocabularies are resolved by effectivePrivacy.
+    revealSensitive: sensitiveContentVisible || secureView,
+    // Only the 2D map can reveal a restricted record for a review session.
+    revealRestricted: secureView,
     privateMode,
     hiddenKinds,
-  }), [sensitiveContentVisible, privateMode, hiddenKinds]);
+  }), [sensitiveContentVisible, secureView, privateMode, hiddenKinds]);
 
   // One shared visibility rule: restricted/hidden/private-mode records are removed entirely.
   // Masked records remain as placeholders so the shape of the map survives, but no wording leaks.
@@ -145,7 +149,6 @@ function MindWorkspace({ onFitRef }: MindWorkspaceProps) {
     if (viewIds && !viewIds.has(node.id)) return false;
     if (kindFilter.length && !kindFilter.includes(node.data.kind)) return false;
     if (provenanceFilter.length && !provenanceFilter.includes(node.data.provenance)) return false;
-    if (!secureView && (nodePrivacy(node) === 'sensitive' || nodePrivacy(node) === 'restricted')) return false;
     if (dimensionFilter !== 'all' && nodeDimension(node) !== dimensionFilter) return false;
     if (query.trim() && !matchIds.has(node.id)) return true; // keep structure, dim non-matches
     return true;
@@ -155,7 +158,7 @@ function MindWorkspace({ onFitRef }: MindWorkspaceProps) {
     const focusClass = selectedIds.size ? (relatedIds.has(node.id) ? 'selected-focus' : 'selected-dimmed') : '';
     const traceClass = tracedIds && !tracedIds.has(node.id) ? 'trace-dimmed' : '';
     return { ...safe, className: [searchClass, focusClass, traceClass].filter(Boolean).join(' ') };
-  }), [displayableNodes, collapsedParents, viewIds, kindFilter, provenanceFilter, dimensionFilter, secureView, maskNode, query, matchIds, selectedIds, relatedIds, tracedIds]);
+  }), [displayableNodes, collapsedParents, viewIds, kindFilter, provenanceFilter, dimensionFilter, maskNode, query, matchIds, selectedIds, relatedIds, tracedIds]);
 
   const visibleIds = useMemo(() => new Set(visibleNodes.map((node) => node.id)), [visibleNodes]);
   const visibleEdges = useMemo(() => privacyEdges.filter((edge) => visibleIds.has(edge.source) && visibleIds.has(edge.target)).map((edge) => {

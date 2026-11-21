@@ -318,6 +318,14 @@ describe('rendered personal mind atlas', () => {
     expect(screen.getByText('Sensitive entry hidden')).toBeTruthy();
   });
 
+  it('gates sensitivity-restricted entries in the Inspector even when storage privacy is private', () => {
+    const node = makeNode('s', 'memory', 'RESTRICTED_INSPECTOR', { privacy: 'private', sensitivity: 'restricted' });
+    resetStores([node]);
+    render(<Inspector selectedNode={node} selectedEdge={null} />);
+    expect(screen.getByTestId('privacy-gate')).toBeTruthy();
+    expect(document.body.textContent).not.toContain('RESTRICTED_INSPECTOR');
+  });
+
   it('opens secure review from the Inspector privacy gate', () => {
     const node = makeNode('s', 'emotion', 'SECRET_INSPECTOR', { privacy: 'sensitive' });
     resetStores([node]);
