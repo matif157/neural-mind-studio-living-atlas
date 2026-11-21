@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { clientSettingsSchema } from '@shared/schemas';
 import { seedEdges, seedNodes } from '../src/data/seed';
 import { scenarios } from '../src/data/scenarios';
 import { createProjectFile, validateProjectFile } from '../src/utils/projectFile';
@@ -47,6 +48,11 @@ describe('project file validation', () => {
     expect(validateProjectFile(project)).toBe(false);
   });
 
+  it('rejects duplicate edge IDs under Zod 4', () => {
+    const project = createProjectFile(seedNodes, [...seedEdges, seedEdges[0]]);
+    expect(validateProjectFile(project)).toBe(false);
+  });
+
   it('rejects non-finite node intensity', () => {
     const nodes = seedNodes.map((node, index) => index === 0 ? { ...node, data: { ...node.data, intensity: Number.NaN } } : node);
     expect(validateProjectFile(createProjectFile(nodes, seedEdges))).toBe(false);
@@ -55,5 +61,17 @@ describe('project file validation', () => {
   it('rejects unsupported valence values', () => {
     const nodes = seedNodes.map((node, index) => index === 0 ? { ...node, data: { ...node.data, valence: 'extreme' as never } } : node);
     expect(validateProjectFile(createProjectFile(nodes, seedEdges))).toBe(false);
+  });
+});
+
+describe('Zod 4 client settings', () => {
+  it('accepts string model overrides and defaults the record', () => {
+    const parsed = clientSettingsSchema.parse({ modelByProvider: { offline: 'local-model' } });
+    expect(parsed.modelByProvider).toEqual({ offline: 'local-model' });
+    expect(clientSettingsSchema.parse({}).modelByProvider).toEqual({});
+  });
+
+  it('rejects non-string model values', () => {
+    expect(clientSettingsSchema.safeParse({ modelByProvider: { offline: 42 } }).success).toBe(false);
   });
 });

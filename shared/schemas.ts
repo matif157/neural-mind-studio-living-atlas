@@ -173,15 +173,15 @@ export const projectFileSchema = z.object({
 }).superRefine((file, ctx) => {
   const ids = new Set<string>();
   for (const node of file.nodes) {
-    if (ids.has(node.id)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Duplicate node id: ${node.id}` });
+    if (ids.has(node.id)) ctx.addIssue({ code: 'custom', message: `Duplicate node id: ${node.id}` });
     ids.add(node.id);
   }
   const edgeIds = new Set<string>();
   for (const edge of file.edges) {
-    if (edgeIds.has(edge.id)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Duplicate edge id: ${edge.id}` });
+    if (edgeIds.has(edge.id)) ctx.addIssue({ code: 'custom', message: `Duplicate edge id: ${edge.id}` });
     edgeIds.add(edge.id);
     if (!ids.has(edge.source) || !ids.has(edge.target) || edge.source === edge.target) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Edge ${edge.id} has an invalid endpoint` });
+      ctx.addIssue({ code: 'custom', message: `Edge ${edge.id} has an invalid endpoint` });
     }
   }
 });
@@ -429,7 +429,7 @@ export const clientSettingsSchema = z.object({
   aiConsent: z.boolean().default(false),
   longTermMemory: z.boolean().default(false),
   provider: z.enum(AI_PROVIDERS).default('offline'),
-  modelByProvider: z.record(z.string()).default({}),
+  modelByProvider: z.record(z.string(), z.string()).default({}),
   theme: z.enum(['dark', 'light']).default('dark'),
   reducedMotion: z.boolean().default(false),
   showSignals: z.boolean().default(true),
