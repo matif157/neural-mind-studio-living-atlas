@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { GraphViewId, Provenance, WorkspaceId } from '@shared/domain';
 import type { MindNodeKind } from '@shared/domain';
+import type { PersonalDimensionId } from '@shared/dimensions';
 
 interface ContextMenuState {
   x: number;
@@ -14,6 +15,8 @@ interface UiState {
   query: string;
   kindFilter: MindNodeKind[];
   provenanceFilter: Provenance[];
+  dimensionFilter: PersonalDimensionId | 'all';
+  secureView: boolean;
   selectedNodeId: string | null;
   contextMenu: ContextMenuState | null;
   leftCollapsed: boolean;
@@ -27,6 +30,8 @@ interface UiState {
   setQuery: (query: string) => void;
   toggleKindFilter: (kind: MindNodeKind) => void;
   toggleProvenanceFilter: (provenance: Provenance) => void;
+  setDimensionFilter: (dimension: PersonalDimensionId | 'all') => void;
+  toggleSecureView: () => void;
   clearFilters: () => void;
   setSelectedNode: (id: string | null) => void;
   openContextMenu: (menu: ContextMenuState) => void;
@@ -41,6 +46,8 @@ export const useUiStore = create<UiState>((set) => ({
   query: '',
   kindFilter: [],
   provenanceFilter: [],
+  dimensionFilter: 'all',
+  secureView: false,
   selectedNodeId: null,
   contextMenu: null,
   leftCollapsed: false,
@@ -60,7 +67,9 @@ export const useUiStore = create<UiState>((set) => ({
       ? state.provenanceFilter.filter((item) => item !== provenance)
       : [...state.provenanceFilter, provenance],
   })),
-  clearFilters: () => set({ kindFilter: [], provenanceFilter: [], query: '' }),
+  setDimensionFilter: (dimensionFilter) => set({ dimensionFilter }),
+  toggleSecureView: () => set((state) => ({ secureView: !state.secureView })),
+  clearFilters: () => set({ kindFilter: [], provenanceFilter: [], query: '', dimensionFilter: 'all' }),
   setSelectedNode: (selectedNodeId) => set({ selectedNodeId }),
   openContextMenu: (contextMenu) => set({ contextMenu }),
   closeContextMenu: () => set({ contextMenu: null }),

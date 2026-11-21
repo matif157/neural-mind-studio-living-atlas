@@ -79,6 +79,7 @@ export function cognitiveLoops(nodes: MindNode[], edges: MindEdge[], limit = 8):
   const byId = new Map(nodes.map((node) => [node.id, node]));
   const adjacency = new Map<string, Array<{ to: string; relation: string }>>();
   for (const edge of edges) {
+    if (edge.data?.structural || edge.data?.review === 'suggested' || edge.data?.signal === false) continue;
     const list = adjacency.get(edge.source) ?? [];
     list.push({ to: edge.target, relation: edge.data?.customRelation ?? edge.data?.relation ?? 'associated with' });
     adjacency.set(edge.source, list);

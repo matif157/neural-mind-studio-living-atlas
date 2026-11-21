@@ -712,3 +712,110 @@ kbd { font: 9px var(--font-mono); color: #b9dbe3; border: 1px solid rgba(125, 16
   .narrative-main { overflow: visible; }
 }
 
+/* ── Personal Cognitive Universe ─────────────────────────── */
+.universe-shell { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 318px; }
+.universe-stage { min-width: 0; min-height: 0; display: flex; flex-direction: column; border-right: 1px solid var(--line); background: linear-gradient(180deg, rgba(13, 23, 39, .96), rgba(7, 13, 23, .96)); }
+.universe-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 15px 18px 12px; border-bottom: 1px solid var(--line); }
+.universe-header h2 { margin: 5px 0 4px; font: 650 18px/1.2 Inter, ui-sans-serif, sans-serif; letter-spacing: -.025em; color: #edf4ff; }
+.universe-header p { margin: 0; color: #7489a3; font-size: 9px; line-height: 1.5; }
+.universe-header-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.universe-header-actions span { border: 1px solid var(--line); border-radius: 20px; padding: 4px 8px; color: #93a8c2; background: rgba(20, 34, 52, .45); font: 8px var(--font-mono); white-space: nowrap; }
+.universe-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 9px 14px; border-bottom: 1px solid var(--line); background: rgba(10, 18, 30, .9); }
+.dimension-chips { display: flex; flex-wrap: wrap; gap: 4px; flex: 1; min-width: 0; }
+.universe-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.universe-tools input { width: 158px; height: 25px; border: 1px solid var(--line); border-radius: 6px; background: rgba(12, 22, 36, .85); color: #d7e4f5; padding: 0 8px; font-size: 9px; }
+.universe-tools input::placeholder { color: #61768f; }
+.universe-canvas-host { position: relative; flex: 1; min-height: 240px; overflow: hidden; background: radial-gradient(ellipse at 50% 45%, rgba(39, 78, 130, .2), transparent 62%), #050912; }
+.cog3d-canvas { display: block; width: 100%; height: 100%; }
+.cog3d-fallback { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 22px; text-align: center; color: #9fb2cb; }
+.cog3d-fallback svg { color: #8bd6df; }
+.cog3d-fallback strong { font-size: 11px; color: #c9d9ee; }
+.cog3d-fallback span { max-width: 460px; font-size: 9px; line-height: 1.6; color: #7489a3; }
+.universe-legend { display: flex; flex-wrap: wrap; gap: 13px; padding: 9px 14px; border-top: 1px solid var(--line); color: #71849d; font: 8px/1.5 var(--font-mono); }
+.universe-legend i { display: inline-block; width: 17px; border-top: 2px solid; vertical-align: middle; margin-right: 5px; }
+.universe-legend i.solid { border-color: #78cbd5; }
+.universe-legend i.dashed { border-color: #f5b94c; border-top-style: dashed; }
+.universe-legend i.protected { width: 9px; height: 9px; border: 1px solid #e0a2c0; border-radius: 50%; background: rgba(224, 162, 192, .24); }
+.universe-side { min-height: 0; overflow: auto; padding: 16px 14px; background: linear-gradient(180deg, rgba(12, 20, 34, .98), rgba(10, 17, 29, .98)); scrollbar-width: thin; }
+.universe-side .panel-heading { margin-top: 6px; font-size: 14px; }
+.universe-side .panel-copy { font-size: 9px; }
+.focus-actions { display: flex; flex-direction: column; gap: 5px; margin: 10px 0 14px; }
+.focus-actions button { display: flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 7px; background: rgba(18, 33, 51, .7); color: #a6bacf; padding: 7px 9px; font-size: 9px; cursor: pointer; text-align: left; }
+.focus-actions button:hover:not(:disabled) { border-color: rgba(112, 167, 255, .4); color: #d9e8fb; }
+.focus-actions button:disabled { opacity: .4; cursor: not-allowed; }
+.connected-heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; border-top: 1px solid var(--line); padding-top: 11px; color: #8ba0ba; font: 9px var(--font-mono); text-transform: uppercase; letter-spacing: .07em; }
+.connected-heading strong { color: #83d8dd; }
+.relationship-review-list { display: flex; flex-direction: column; gap: 6px; margin: 9px 0 14px; }
+.relationship-card { border: 1px solid var(--line); border-left: 2px solid #78cbd5; border-radius: 7px; background: rgba(20, 34, 52, .35); padding: 8px 9px; }
+.relationship-card.suggested { border-left-color: #f5b94c; }
+.relationship-card.rejected { border-left-color: #eb9ba6; opacity: .72; }
+.relationship-card div { color: #c9d8eb; font-size: 9px; line-height: 1.5; }
+.relationship-card small { display: block; margin-top: 4px; color: #7287a1; font: 8px/1.5 var(--font-mono); }
+.relationship-card p { margin: 6px 0 0; color: #9fb2c9; font-size: 9px; line-height: 1.55; }
+.relationship-card blockquote { margin: 6px 0 0; padding-left: 7px; border-left: 1px solid rgba(245, 185, 76, .4); color: #b9a887; font-size: 8px; font-style: italic; line-height: 1.5; }
+.muted-note { color: #6d829c; font-size: 9px; line-height: 1.6; }
+.accessible-node-list { border-top: 1px solid var(--line); padding-top: 10px; }
+.accessible-node-list summary { cursor: pointer; color: #8ba0ba; font-size: 9px; }
+.accessible-node-list ul { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; max-height: 220px; overflow: auto; }
+.accessible-node-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.accessible-node-list button { flex: 1; text-align: left; border: 0; background: transparent; color: #b9cbe0; font-size: 9px; padding: 4px 3px; cursor: pointer; }
+.accessible-node-list button:hover { color: #8bd6df; }
+.accessible-node-list small { color: #5f7490; font: 8px var(--font-mono); white-space: nowrap; }
+
+/* ── Review & privacy surfaces in the Inspector ──────────── */
+.relationship-review { border: 1px solid rgba(232, 194, 106, .24); border-radius: 8px; background: rgba(232, 194, 106, .05); padding: 10px; margin: 12px 0; }
+.review-row { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 5px; color: #7f93ad; font-size: 9px; }
+.review-row strong { font-weight: 500; text-align: right; color: #c3d2e6; }
+.review-row .chip.confirmed { color: #8fe0cb; border-color: rgba(103, 217, 189, .3); }
+.review-row .chip.suggested { color: #d7bd83; border-color: rgba(232, 194, 106, .35); }
+.review-row .chip.rejected { color: #eb9ba6; border-color: rgba(235, 155, 166, .3); }
+.review-evidence { margin-top: 8px; color: #7f93ad; font-size: 8px; }
+.review-evidence blockquote { margin: 5px 0 0; padding-left: 7px; border-left: 1px solid rgba(245, 185, 76, .4); color: #b9a887; font-size: 8px; font-style: italic; line-height: 1.55; }
+.review-explanation { margin: 8px 0 0; color: #9fb2c9; font-size: 9px; line-height: 1.6; }
+.review-actions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
+.review-actions button { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: 5px; background: rgba(18, 33, 51, .7); color: #a6bacf; padding: 5px 7px; font-size: 8px; cursor: pointer; }
+.review-actions button:hover { border-color: rgba(112, 167, 255, .4); color: #d9e8fb; }
+.privacy-notice { margin: 10px 0; padding: 8px 9px; border: 1px solid rgba(224, 162, 192, .28); border-radius: 7px; background: rgba(224, 162, 192, .07); color: #e3b6cd; font-size: 9px; line-height: 1.55; }
+.compact-toggle { padding: 7px 0; }
+
+/* ── Anatomical brain model modal ─────────────────────────── */
+.brain3d-modal { width: min(1080px, 96vw); max-height: min(760px, 94vh); display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--line-strong); border-radius: 14px; background: linear-gradient(180deg, #0d1727, #09111e); box-shadow: 0 26px 80px rgba(0, 0, 0, .55); }
+.modal-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; padding: 16px 18px; border-bottom: 1px solid var(--line); }
+.modal-header h2 { margin: 5px 0 0; font: 650 18px/1.2 Inter, ui-sans-serif, sans-serif; color: #edf4ff; }
+.brain3d-content { display: grid; grid-template-columns: minmax(0, 1fr) 320px; flex: 1; min-height: 0; }
+.brain3d-stage { min-width: 0; min-height: 0; display: flex; flex-direction: column; border-right: 1px solid var(--line); }
+.brain3d-host { position: relative; flex: 1; min-height: 360px; overflow: hidden; background: radial-gradient(ellipse at 50% 45%, rgba(78, 65, 128, .22), transparent 64%), #050912; }
+.brain3d-canvas { display: block; width: 100%; height: 100%; }
+.brain3d-controls { display: flex; align-items: center; gap: 5px; padding: 9px 12px; border-top: 1px solid var(--line); }
+.brain3d-info { min-height: 0; overflow: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.part-selector { display: flex; flex-wrap: wrap; gap: 5px; }
+.part-selector button { border: 1px solid var(--line); border-radius: 20px; background: rgba(19, 34, 52, .6); color: #8ea3bc; padding: 5px 9px; font-size: 9px; cursor: pointer; }
+.part-selector button.is-active { color: #a5e3e3; border-color: rgba(103, 217, 220, .35); background: rgba(58, 143, 151, .14); }
+.part-detail { border: 1px solid var(--line); border-radius: 8px; background: rgba(9, 17, 29, .6); padding: 11px; }
+.part-detail h3 { margin: 6px 0 5px; font-size: 12px; color: #d5e2f3; }
+.part-detail p { margin: 0; color: #99acc3; font-size: 9px; line-height: 1.65; }
+
+/* ── Theme & responsive additions for the new surfaces ───── */
+.theme-light .universe-stage, .theme-light .universe-side, .theme-light .brain3d-info, .theme-light .brain3d-modal { background: #fff; }
+.theme-light .universe-canvas-host, .theme-light .brain3d-host { background: radial-gradient(ellipse at 50% 45%, #e4edf9, #f7faff); }
+.theme-light .universe-header h2, .theme-light .modal-header h2, .theme-light .part-detail h3 { color: #1b2d43; }
+.theme-light .universe-header p, .theme-light .universe-legend, .theme-light .cog3d-fallback span, .theme-light .review-row, .theme-light .part-detail p { color: #536a86; }
+.theme-light .relationship-review, .theme-light .relationship-card, .theme-light .privacy-notice, .theme-light .focus-actions button, .theme-light .review-actions button { background: #f5f8fc; }
+.theme-light .universe-tools input { background: #fff; color: #2c4058; }
+@media (max-width: 1100px) {
+  .universe-shell { grid-template-columns: 1fr; grid-template-rows: minmax(360px, 1fr) auto; overflow: auto; }
+  .universe-stage { border-right: 0; border-bottom: 1px solid var(--line); }
+  .universe-side { max-height: 340px; }
+  .brain3d-content { grid-template-columns: 1fr; }
+  .brain3d-stage { border-right: 0; border-bottom: 1px solid var(--line); }
+  .brain3d-host { min-height: 300px; }
+}
+@media (max-width: 640px) {
+  .universe-header { flex-direction: column; }
+  .universe-header-actions { justify-content: flex-start; }
+  .universe-tools input { width: 100%; }
+  .dimension-chips { max-height: 78px; overflow: auto; }
+  .universe-legend { gap: 8px; }
+  .brain3d-modal { width: 100vw; max-height: 100vh; border-radius: 0; }
+}
+

@@ -70,11 +70,23 @@ export function analyzeOffline(text: string): AiAnalysis {
   const thoughtIds = thoughts.map((thought) => add('thought', thought.original_text.slice(0, 120), thought.original_text, thought.original_text));
   for (const pattern of patterns) {
     const id = add('pattern', pattern.name, pattern.evidence);
-    if (thoughtIds[0]) proposedEdges.push({ source: id, target: thoughtIds[0], relation: 'may indicate', weight: 0.4, explanation: 'Offline keyword co-occurrence; review carefully.' });
+    if (thoughtIds[0]) proposedEdges.push({
+      source: id, target: thoughtIds[0], relation: 'may indicate', weight: 0.4,
+      explanation: 'Offline keyword co-occurrence; review carefully.',
+      evidence: pattern.evidence,
+    });
   }
-  for (const emotion of emotionIds) proposedEdges.push({ source: situationId, target: emotion, relation: 'context for', weight: 0.4, explanation: 'Both appeared in the same reflection.' });
-  for (const thought of thoughtIds) {
-    if (emotionIds[0]) proposedEdges.push({ source: thought, target: emotionIds[0], relation: 'co-occurs with', weight: 0.4, explanation: 'Both appeared in the same reflection.' });
+  const situationEvidence = sentences(text)[0] ?? text.slice(0, 200);
+  for (const emotion of emotionIds) proposedEdges.push({
+    source: situationId, target: emotion, relation: 'context for', weight: 0.4,
+    explanation: 'Both appeared in the same reflection.', evidence: situationEvidence,
+  });
+  for (const [index, thought] of thoughts.entries()) {
+    const thoughtId = thoughtIds[index];
+    if (emotionIds[0] && thoughtId) proposedEdges.push({
+      source: thoughtId, target: emotionIds[0], relation: 'co-occurs with', weight: 0.4,
+      explanation: 'Both appeared in the same reflection.', evidence: thought.original_text,
+    });
   }
   for (const need of needs) add('need', need.name, need.evidence);
   for (const behaviour of behaviours) add('behavior', behaviour.description, behaviour.evidence);

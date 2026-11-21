@@ -4,9 +4,11 @@ import {
   type Connection, type EdgeChange, type NodeChange,
 } from '@xyflow/react';
 import { seedEdges, seedNodes } from '../data/seed';
-import { NODE_META, type MindNodeKind } from '@shared/domain';
+import { NODE_META, type MindNodeKind, type PrivacyLevel } from '@shared/domain';
+import { dimensionForKind } from '@shared/dimensions';
 import { evidenceRefSchema, type AiAnalysis, type ProjectFile } from '@shared/schemas';
 import type { MindEdge, MindNode, MindNodeData } from '../types/mind';
+import type { Point3 } from '../lib/mind3d';
 
 type Snapshot = { nodes: MindNode[]; edges: MindEdge[] };
 type ClipboardData = { nodes: MindNode[]; edges: MindEdge[] } | null;
@@ -70,6 +72,12 @@ interface MindState {
   acceptNode: (id: string) => void;
   correctNode: (id: string, patch: Partial<MindNodeData>) => void;
   rejectNode: (id: string) => void;
+  confirmEdge: (id: string) => void;
+  correctEdge: (id: string, patch: Partial<NonNullable<MindEdge['data']>>) => void;
+  rejectEdge: (id: string) => void;
+  setNodePrivacy: (id: string, privacy: PrivacyLevel) => void;
+  setPos3: (id: string, point: Point3 | null) => void;
+  syncPos3To2D: (id: string) => void;
   addCustomCategory: (category: CustomCategory) => void;
   addCustomRelation: (relation: CustomRelation) => void;
   undo: () => void;
@@ -105,6 +113,9 @@ const blankData = (kind: MindNodeKind, label?: string, patch: Partial<MindNodeDa
   collapsed: false,
   locked: false,
   isGroup: false,
+  dimension: dimensionForKind(kind),
+  privacy: 'private',
+  safetySignal: false,
   ...patch,
 });
 
@@ -193,7 +204,11 @@ export const useMindStore = create<MindState>((set, get) => ({
         targetHandle: connection.targetHandle,
         type: 'neural',
         animated: true,
-        data: { relation, weight: 0.6, signal: true, direction: 'forward', provenance: 'user-confirmed', confidence: null, createdAt: stamp() },
+        data: {
+          relation, weight: 0.6, signal: true, direction: 'forward',
+          provenance: 'user-confirmed', confidence: null, createdAt: stamp(),
+          structural: false, review: 'confirmed', evidence: [],
+        },
       };
       return commit(state, { edges: addEdge(newEdge, state.edges) as MindEdge[] }, 'Relationship added', `${relation} (${connection.source} → ${connection.target})`);
     });
@@ -336,7 +351,11 @@ export const useMindStore = create<MindState>((set, get) => ({
         data: {
           relation: proposal.relation, weight: proposal.weight, explanation: proposal.explanation,
           provenance: 'ai-suggested', confidence: Math.min(proposal.weight, 0.8),
-          direction: 'forward', signal: true, createdAt: stamp(),
+          direction: 'forward', signal: false, createdAt: stamp(),
+          structural: false, review: 'suggested',
+          evidence: proposal.evidence
+            ? [evidenceRefSchema.parse({ eventId, excerpt: proposal.evidence, date })]
+            : [],
         },
       });
     }
@@ -363,6 +382,53 @@ export const useMindStore = create<MindState>((set, get) => ({
     nodes: state.nodes.filter((node) => node.id !== id),
     edges: state.edges.filter((edge) => edge.source !== id && edge.target !== id),
   }, 'Proposal rejected', id)),
+
+  confirmEdge: (id) => set((state) => commit(state, {
+    edges: state.edges.map((edge) => edge.id === id ? {
+      ...edge,
+      data: {
+        ...edge.data!, review: 'confirmed', provenance: 'user-confirmed',
+        signal: edge.data?.structural !== true, updatedAt: stamp(),
+      },
+    } : edge),
+  }, 'Relationship confirmed', id)),
+
+  correctEdge: (id, patch) => set((state) => commit(state, {
+    edges: state.edges.map((edge) => edge.id === id ? {
+      ...edge,
+      data: {
+        ...edge.data!, ...patch, review: 'confirmed', provenance: 'user-corrected',
+        signal: patch.structural === true ? false : (edge.data?.signal ?? true),
+        updatedAt: stamp(),
+      },
+    } : edge),
+  }, 'Relationship corrected', id)),
+
+  rejectEdge: (id) => set((state) => commit(state, {
+    edges: state.edges.filter((edge) => edge.id !== id),
+  }, 'Relationship suggestion rejected', id)),
+
+  setNodePrivacy: (id, privacy) => set((state) => commit(state, {
+    nodes: state.nodes.map((node) => node.id === id
+      ? { ...node, data: { ...node.data, privacy, updatedAt: stamp() } }
+      : node),
+  }, 'Privacy level changed', `${id} → ${privacy}`)),
+
+  setPos3: (id, point) => set((state) => commit(state, {
+    nodes: state.nodes.map((node) => node.id === id
+      ? { ...node, data: { ...node.data, pos3: point ?? undefined, updatedAt: stamp() } }
+      : node),
+  }, '3D presentation position saved', id)),
+
+  syncPos3To2D: (id) => set((state) => {
+    const node = state.nodes.find((item) => item.id === id);
+    if (!node?.data.pos3) return state;
+    return commit(state, {
+      nodes: state.nodes.map((item) => item.id === id
+        ? { ...item, position: { x: item.data.pos3!.x * 60, y: item.data.pos3!.z * 60 } }
+        : item),
+    }, '3D position explicitly synced to 2D', id);
+  }),
 
   addCustomCategory: (category) => set((state) => ({
     customCategories: [...state.customCategories.filter((item) => item.id !== category.id), category],

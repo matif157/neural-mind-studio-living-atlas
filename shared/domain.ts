@@ -32,6 +32,14 @@ export type Provenance = (typeof PROVENANCE_LABELS)[number];
 export const NODE_STATUSES = ['active', 'draft', 'archived'] as const;
 export type NodeStatus = (typeof NODE_STATUSES)[number];
 
+/** Privacy is a user-controlled presentation and sharing boundary, not a clinical label. */
+export const PRIVACY_LEVELS = ['public', 'private', 'sensitive', 'restricted'] as const;
+export type PrivacyLevel = (typeof PRIVACY_LEVELS)[number];
+
+/** A proposed relationship stays a suggestion until the user reviews it. */
+export const EDGE_REVIEW_STATUSES = ['suggested', 'confirmed', 'rejected'] as const;
+export type EdgeReviewStatus = (typeof EDGE_REVIEW_STATUSES)[number];
+
 export const VALENCES = ['positive', 'negative', 'mixed', 'neutral'] as const;
 export type Valence = (typeof VALENCES)[number];
 
@@ -50,6 +58,7 @@ export const WORKSPACES = [
   { id: 'library', label: 'Knowledge Library', short: 'Library', key: 'I' },
   { id: 'settings', label: 'Settings & Data Control', short: 'Settings', key: 'J' },
   { id: 'narrative', label: 'Narrative Threads', short: 'Threads', key: 'K' },
+  { id: 'universe', label: 'Personal Cognitive Universe', short: 'Universe', key: 'L' },
 ] as const;
 export type WorkspaceId = (typeof WORKSPACES)[number]['id'];
 
