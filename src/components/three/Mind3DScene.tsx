@@ -1,16 +1,37 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useLoader, useThree, type ThreeEvent } from '@react-three/fiber';
 import {
-  BufferGeometry, CanvasTexture, CubicBezierCurve3, Float32BufferAttribute, Group, Mesh,
-  Plane, Points, SRGBColorSpace, Vector3,
+  AdditiveBlending, BufferGeometry, CanvasTexture, CubicBezierCurve3, DoubleSide,
+  Float32BufferAttribute, Group, Mesh, MeshStandardMaterial, Plane, Points,
+  SRGBColorSpace, Vector3,
 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import type { MindNodeKind } from '@shared/domain';
 import type { MindEdge, MindNode } from '../../types/mind';
 import { getMindNodeColor } from '../../types/mind';
 import type { Vec3Tuple } from '../../utils/mind3dLayout';
 
 export type Mind3DMode = 'mind' | 'brain' | 'neuron';
+export type Mind3DCameraPreset = 'front' | 'side' | 'top' | 'iso';
+
+/** Readable reference angles for the conceptual sculpture, never anatomical slice views. */
+export const MIND3D_CAMERA_PRESETS: Record<Mind3DCameraPreset, { position: Vec3Tuple; target: Vec3Tuple }> = {
+  front: { position: [0, 0.15, 9.4], target: [0, 0.15, 0] },
+  side: { position: [9.4, 0.15, 0.001], target: [0, 0.15, 0] },
+  top: { position: [0.001, 9.4, 0.001], target: [0, 0, 0] },
+  iso: { position: [6.7, 5.1, 6.7], target: [0, 0, 0] },
+};
+
+/** Cool conceptual palette. It is presentation only and never encodes severity or diagnosis. */
+const MIND3D_ACCENTS: Partial<Record<MindNodeKind, string>> = {
+  emotion: '#67e8f9', thought: '#a5f3fc', pattern: '#22d3ee', memory: '#7dd3fc',
+  belief: '#93c5fd', identity: '#a5b4fc', need: '#5eead4', goal: '#38bdf8',
+  value: '#6ee7b7', behavior: '#38bdf8', body: '#2dd4bf', situation: '#94a3b8',
+  context: '#7dd3fc', social: '#93c5fd', strength: '#6ee7b7', coping: '#5eead4',
+  reflection: '#a5f3fc', exercise: '#67e8f9', knowledge: '#7dd3fc', conversation: '#93c5fd',
+  safety: '#c4b5fd',
+};
 
 export interface SceneNode {
   node: MindNode;
@@ -18,7 +39,10 @@ export interface SceneNode {
   masked: boolean;
   selected: boolean;
   dimmed: boolean;
+  expanded: boolean;
+  animate: boolean;
   onSelect: (node: MindNode) => void;
+  onToggleExpand?: (node: MindNode) => void;
   onMove?: (node: MindNode, position: Vec3Tuple) => void;
 }
 
@@ -29,11 +53,12 @@ export interface SceneEdge {
   active: boolean;
   selected: boolean;
   dimmed: boolean;
+  speculative: boolean;
   running: boolean;
   onSelect: (edge: MindEdge) => void;
 }
 
-function ControlsRig({ minDistance = 5.4, maxDistance = 15, target = [0, 0, 0] as Vec3Tuple }) {
+function ControlsRig({ minDistance = 5.4, maxDistance = 15, target = [0, 0, 0] as Vec3Tuple, reducedMotion = false }) {
   const { camera, gl } = useThree();
   const controls = useMemo(() => new OrbitControls(camera, gl.domElement), [camera, gl.domElement]);
   useEffect(() => {
@@ -43,21 +68,34 @@ function ControlsRig({ minDistance = 5.4, maxDistance = 15, target = [0, 0, 0] a
       controls.target.set(detail[0], detail[1], detail[2]);
       controls.update();
     };
+    const onCameraPreset = (event: Event) => {
+      const preset = (event as CustomEvent<Mind3DCameraPreset>).detail;
+      const config = MIND3D_CAMERA_PRESETS[preset];
+      if (!config) return;
+      camera.position.set(...config.position);
+      controls.target.set(...config.target);
+      controls.update();
+    };
     window.addEventListener('mind3d:focus', onFocus);
-    controls.enableDamping = true;
+    window.addEventListener('mind3d:camera', onCameraPreset);
+    controls.enableDamping = !reducedMotion;
     controls.dampingFactor = 0.055;
     controls.minDistance = minDistance;
     controls.maxDistance = maxDistance;
     controls.enablePan = true;
     controls.target.set(target[0], target[1], target[2]);
     controls.update();
-    return () => { window.removeEventListener('mind3d:focus', onFocus); controls.dispose(); };
-  }, [controls, minDistance, maxDistance, target]);
+    return () => {
+      window.removeEventListener('mind3d:focus', onFocus);
+      window.removeEventListener('mind3d:camera', onCameraPreset);
+      controls.dispose();
+    };
+  }, [camera, controls, minDistance, maxDistance, target, reducedMotion]);
   useFrame(() => controls.update());
   return null;
 }
 
-function StarField() {
+function StarField({ running = true }: { running?: boolean }) {
   const ref = useRef<Points>(null);
   const geometry = useMemo(() => {
     const count = 1150;
@@ -72,23 +110,44 @@ function StarField() {
       positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
       positions[i * 3 + 1] = radius * Math.cos(phi);
       positions[i * 3 + 2] = radius * Math.sin(phi) * Math.sin(theta);
-      const tone = 0.48 + random() * 0.5;
-      colors[i * 3] = 0.36 * tone;
-      colors[i * 3 + 1] = 0.55 * tone;
-      colors[i * 3 + 2] = 0.95 * tone;
+      const tone = 0.42 + random() * 0.5;
+      colors[i * 3] = 0.12 * tone;
+      colors[i * 3 + 1] = 0.62 * tone;
+      colors[i * 3 + 2] = 0.78 * tone;
     }
     const result = new BufferGeometry();
     result.setAttribute('position', new Float32BufferAttribute(positions, 3));
     result.setAttribute('color', new Float32BufferAttribute(colors, 3));
     return result;
   }, []);
-  useFrame((_, delta) => { if (ref.current) ref.current.rotation.y += delta * 0.003; });
-  return <points ref={ref} geometry={geometry}><pointsMaterial size={0.018} vertexColors transparent opacity={0.7} sizeAttenuation depthWrite={false} /></points>;
+  useFrame((_, delta) => { if (ref.current && running) ref.current.rotation.y += delta * 0.003; });
+  return <points ref={ref} geometry={geometry}><pointsMaterial size={0.015} vertexColors transparent opacity={0.52} sizeAttenuation depthWrite={false} /></points>;
 }
 
 function BrainAsset({ running }: { running: boolean }) {
   const gltf = useLoader(GLTFLoader, '/models/conceptual-brain.glb');
-  const brain = useMemo(() => gltf.scene.clone(true), [gltf.scene]);
+  const brain = useMemo(() => {
+    const model = gltf.scene.clone(true);
+    model.traverse((object) => {
+      if (!(object as Mesh).isMesh) return;
+      const mesh = object as Mesh;
+      // Replace imported textures/materials with a presentation-only cyan sculpture.
+      // Geometry stays untouched; no anatomical or personal meaning is attached here.
+      const source = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      mesh.material = source.map(() => new MeshStandardMaterial({
+        color: '#00e6ff',
+        emissive: '#00d8f0',
+        emissiveIntensity: 1.55,
+        roughness: 0.3,
+        metalness: 0.18,
+        transparent: true,
+        opacity: 0.86,
+        side: DoubleSide,
+        toneMapped: false,
+      }));
+    });
+    return model;
+  }, [gltf.scene]);
   const group = useRef<Group>(null);
   useFrame((state) => {
     if (!group.current || !running) return;
@@ -97,11 +156,15 @@ function BrainAsset({ running }: { running: boolean }) {
     group.current.position.y = Math.sin(state.clock.elapsedTime * 0.55) * 0.025;
   });
   return (
-    <group ref={group} scale={1.05}>
+    <group ref={group} scale={1.08}>
       <primitive object={brain} dispose={null} />
+      <mesh scale={[1.55, 1.05, 1.13]}>
+        <sphereGeometry args={[1, 32, 24]} />
+        <meshBasicMaterial color="#00c8e0" transparent opacity={0.06} blending={AdditiveBlending} depthWrite={false} toneMapped={false} />
+      </mesh>
       <mesh scale={[1.44, 0.98, 1.03]}>
         <sphereGeometry args={[1, 52, 36]} />
-        <meshBasicMaterial color="#7d9bff" wireframe transparent opacity={0.045} depthWrite={false} />
+        <meshBasicMaterial color="#56dcec" wireframe transparent opacity={0.16} depthWrite={false} toneMapped={false} />
       </mesh>
     </group>
   );
@@ -112,19 +175,19 @@ function OrbitArchitecture() {
     <group>
       <mesh rotation={[Math.PI / 2.4, 0.15, 0.12]}>
         <torusGeometry args={[3.75, 0.006, 5, 180]} />
-        <meshBasicMaterial color="#516eaf" transparent opacity={0.34} />
+        <meshBasicMaterial color="#1f7f8c" transparent opacity={0.26} />
       </mesh>
       <mesh rotation={[1.18, -0.22, 0.38]}>
         <torusGeometry args={[4.25, 0.004, 5, 180]} />
-        <meshBasicMaterial color="#8d75e8" transparent opacity={0.19} />
+        <meshBasicMaterial color="#2aa6b8" transparent opacity={0.14} />
       </mesh>
       <mesh rotation={[0.62, 0.92, -0.24]}>
         <torusGeometry args={[4.8, 0.004, 5, 180]} />
-        <meshBasicMaterial color="#53c9d4" transparent opacity={0.13} />
+        <meshBasicMaterial color="#3ad0e0" transparent opacity={0.1} />
       </mesh>
       <mesh position={[0, 0, 0]}>
         <sphereGeometry args={[2.5, 32, 32]} />
-        <meshBasicMaterial color="#5979c8" wireframe transparent opacity={0.025} />
+        <meshBasicMaterial color="#2a9eae" wireframe transparent opacity={0.02} />
       </mesh>
     </group>
   );
@@ -148,17 +211,17 @@ function NodeLabel({ text, color, y = 0.32 }: { text: string; color: string; y?:
     const context = canvas.getContext('2d');
     if (context) {
       context.clearRect(0, 0, canvas.width, canvas.height);
-      context.fillStyle = 'rgba(5, 10, 23, 0.92)';
+      context.fillStyle = 'rgba(4, 14, 22, 0.94)';
       context.strokeStyle = color;
       context.lineWidth = 5;
       context.beginPath();
       context.roundRect(10, 10, 1004, 140, 38);
       context.fill();
       context.stroke();
-      context.font = '600 48px Inter, Arial, sans-serif';
+      context.font = '600 46px "JetBrains Mono", ui-monospace, monospace';
       context.textAlign = 'center';
       context.textBaseline = 'middle';
-      context.fillStyle = '#F3F6FF';
+      context.fillStyle = '#EAFEFF';
       const safeText = text.length > 34 ? `${text.slice(0, 31)}…` : text;
       context.fillText(safeText, 512, 82, 940);
     }
@@ -172,16 +235,20 @@ function NodeLabel({ text, color, y = 0.32 }: { text: string; color: string; y?:
   return <sprite position={[0, y, 0]} scale={[width, 0.24, 1]}><spriteMaterial map={texture} transparent depthWrite={false} /></sprite>;
 }
 
-function NeuronNode({ node, position, masked, selected, dimmed, onSelect, onMove }: SceneNode) {
+function NeuronNode({ node, position, masked, selected, dimmed, expanded, animate, onSelect, onToggleExpand, onMove }: SceneNode) {
   const group = useRef<Group>(null);
   const [hovered, setHovered] = useState(false);
   const dragging = useRef(false);
   const { camera } = useThree();
-  const color = masked ? '#718096' : getMindNodeColor(node.data);
+  const color = masked ? '#64748b' : MIND3D_ACCENTS[node.data.kind as MindNodeKind] ?? getMindNodeColor(node.data);
   const radius = selected ? 0.125 : 0.085 + (node.data.intensity ?? 0.5) * 0.025;
 
   useFrame((state, delta) => {
     if (!group.current || dragging.current) return;
+    if (!animate) {
+      group.current.position.set(...position);
+      return;
+    }
     group.current.position.y = position[1] + (selected ? 0 : Math.sin(state.clock.elapsedTime * 0.8 + node.id.length) * 0.025);
     const target = selected ? 1.14 : hovered ? 1.08 : 1;
     group.current.scale.lerp(new Vector3(target, target, target), Math.min(1, delta * 5));
@@ -221,6 +288,7 @@ function NeuronNode({ node, position, masked, selected, dimmed, onSelect, onMove
     <group ref={group} position={position}>
       <mesh
         onClick={(event) => { event.stopPropagation(); onSelect(node); }}
+        onDoubleClick={(event) => { event.stopPropagation(); onToggleExpand?.(node); }}
         onPointerDown={startDrag}
         onPointerMove={moveDrag}
         onPointerUp={endDrag}
@@ -228,11 +296,11 @@ function NeuronNode({ node, position, masked, selected, dimmed, onSelect, onMove
         onPointerOut={() => { setHovered(false); if (!dragging.current) document.body.style.cursor = ''; }}
       >
         <sphereGeometry args={[radius, 24, 24]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={masked ? 0.12 : selected ? 1.15 : hovered ? 0.85 : 0.55} roughness={0.28} metalness={0.32} transparent opacity={dimmed ? 0.2 : 1} />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={masked ? 0.12 : selected ? 1.6 : hovered ? 1.25 : 0.9} roughness={0.28} metalness={0.32} transparent opacity={dimmed ? 0.2 : 1} toneMapped={false} />
       </mesh>
       <mesh scale={selected ? 1.78 : 1.48}>
         <sphereGeometry args={[radius, 18, 18]} />
-        <meshBasicMaterial color={color} transparent opacity={selected ? 0.13 : 0.065} depthWrite={false} />
+        <meshBasicMaterial color={color} transparent opacity={selected ? 0.2 : 0.1} depthWrite={false} toneMapped={false} />
       </mesh>
       <mesh rotation={[Math.PI / 2.2, 0.24, 0.1]}>
         <torusGeometry args={[radius * (selected ? 2.15 : 1.85), 0.006, 5, 32]} />
@@ -243,13 +311,14 @@ function NeuronNode({ node, position, masked, selected, dimmed, onSelect, onMove
         <Dendrite color={color} rotation={[-0.7, 1.2, 0.9]} />
         <Dendrite color={color} rotation={[1.1, -0.8, 2.0]} />
       </group>
-      {(selected || hovered) && !masked && <NodeLabel text={node.data.label} color={color} />}
+      {(selected || hovered || expanded) && !masked && <NodeLabel text={node.data.label} color={color} />}
       {selected && <mesh rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[0.28, 0.009, 6, 48]} /><meshBasicMaterial color={color} transparent opacity={0.82} /></mesh>}
+      {expanded && <mesh rotation={[Math.PI / 2.6, 0.4, 0]}><torusGeometry args={[0.36, 0.005, 5, 48]} /><meshBasicMaterial color="#8ef0ff" transparent opacity={0.5} /></mesh>}
     </group>
   );
 }
 
-function SynapseLink({ edge, source, target, active, selected, dimmed, running, onSelect }: SceneEdge) {
+function SynapseLink({ edge, source, target, active, selected, dimmed, speculative, running, onSelect }: SceneEdge) {
   const particle = useRef<Mesh>(null);
   const curve = useMemo(() => {
     const a = new Vector3(...source);
@@ -259,22 +328,30 @@ function SynapseLink({ edge, source, target, active, selected, dimmed, running, 
     return new CubicBezierCurve3(a, a.clone().lerp(midpoint, 0.6).add(lift), b.clone().lerp(midpoint, 0.6).add(lift), b);
   }, [source, target]);
   const weight = Math.max(0.12, Math.min(1, edge.data?.weight ?? 0.55));
-  const color = selected ? '#ffffff' : active ? '#b8caff' : '#6682b8';
-  const opacity = dimmed ? 0.055 : selected ? 0.92 : active ? 0.72 : 0.22 + weight * 0.18;
+  const color = speculative ? '#e0a56a' : selected ? '#f2ffff' : active ? '#a5f3fc' : '#22d3ee';
+  const opacity = dimmed ? 0.055 : selected ? 0.98 : active ? 0.94 : (speculative ? 0.42 : 0.45 + weight * 0.25);
+  const segments = useMemo(() => Array.from({ length: 9 }, (_, index) => curve.getPointAt((index + 0.5) / 9)), [curve]);
   useFrame((state) => {
     if (!particle.current || !running || (!active && !selected)) return;
     const t = (state.clock.elapsedTime * 0.16 + (edge.id.length % 11) / 11) % 1;
     particle.current.position.copy(curve.getPointAt(t));
   });
   return (
-    <group>
-      <mesh onClick={(event) => { event.stopPropagation(); onSelect(edge); }}>
-        <tubeGeometry args={[curve, 28, selected ? 0.012 : 0.005 + weight * 0.004, 5, false]} />
-        <meshBasicMaterial color={color} transparent opacity={opacity} depthWrite={false} />
-      </mesh>
+    <group onClick={(event) => { event.stopPropagation(); onSelect(edge); }}>
+      {speculative ? segments.map((point, index) => (
+        <mesh key={index} position={point}>
+          <sphereGeometry args={[selected ? 0.024 : 0.016, 8, 8]} />
+          <meshBasicMaterial color={color} transparent opacity={opacity} depthWrite={false} toneMapped={false} />
+        </mesh>
+      )) : (
+        <mesh>
+          <tubeGeometry args={[curve, 28, selected ? 0.012 : 0.005 + weight * 0.004, 5, false]} />
+          <meshBasicMaterial color={color} transparent opacity={opacity} depthWrite={false} toneMapped={false} />
+        </mesh>
+      )}
       {running && (active || selected) && <mesh ref={particle}>
         <sphereGeometry args={[0.035 + weight * 0.018, 12, 12]} />
-        <meshBasicMaterial color={selected ? '#ffffff' : '#82e7f2'} />
+        <meshBasicMaterial color={selected ? '#f2ffff' : '#67e8f9'} />
       </mesh>}
     </group>
   );
@@ -433,32 +510,34 @@ export interface Mind3DSceneProps {
   nodes: SceneNode[];
   edges: SceneEdge[];
   running: boolean;
+  reducedMotion: boolean;
   mode: Mind3DMode;
   selectedNeuronPart: string | null;
   onSelectNeuronPart: (id: string) => void;
 }
 
-function SceneContents({ nodes, edges, running, mode, selectedNeuronPart, onSelectNeuronPart }: Mind3DSceneProps) {
+function SceneContents({ nodes, edges, running, reducedMotion, mode, selectedNeuronPart, onSelectNeuronPart }: Mind3DSceneProps) {
+  const effectiveRunning = running && !reducedMotion;
   return (
     <>
-      <color attach="background" args={['#050913']} />
-      <fog attach="fog" args={['#050913', 9, 18]} />
-      <ambientLight intensity={0.62} />
-      <pointLight position={[4, 5, 6]} intensity={18} color="#a8bbff" distance={14} />
-      <pointLight position={[-5, -2, -3]} intensity={10} color="#60c8d8" distance={12} />
-      <pointLight position={[0, 4, -5]} intensity={8} color="#9577e8" distance={10} />
+      <color attach="background" args={['#07090e']} />
+      <fog attach="fog" args={['#07090e', 9, 18]} />
+      <ambientLight intensity={0.72} />
+      <pointLight position={[4, 5, 6]} intensity={20} color="#8fe9f5" distance={14} />
+      <pointLight position={[-5, -2, -3]} intensity={12} color="#2bbdd1" distance={12} />
+      <pointLight position={[0, 4, -5]} intensity={8} color="#5eead4" distance={10} />
       {mode === 'neuron' ? (
-        <NeuronScene selectedPart={selectedNeuronPart} onSelectPart={onSelectNeuronPart} running={running} />
+        <NeuronScene selectedPart={selectedNeuronPart} onSelectPart={onSelectNeuronPart} running={effectiveRunning} />
       ) : (
         <>
-          <StarField />
+          <StarField running={effectiveRunning} />
           <OrbitArchitecture />
-          <Suspense fallback={null}><BrainAsset running={running} /></Suspense>
+          <Suspense fallback={null}><BrainAsset running={effectiveRunning} /></Suspense>
           {mode === 'mind' && <>
-            {edges.map((item) => <SynapseLink key={item.edge.id} {...item} />)}
-            {nodes.map((item) => <NeuronNode key={item.node.id} {...item} />)}
+            {edges.map((item) => <SynapseLink key={item.edge.id} {...item} running={effectiveRunning} />)}
+            {nodes.map((item) => <NeuronNode key={item.node.id} {...item} animate={!reducedMotion} />)}
           </>}
-          <ControlsRig />
+          <ControlsRig reducedMotion={reducedMotion} />
         </>
       )}
     </>
@@ -468,10 +547,10 @@ function SceneContents({ nodes, edges, running, mode, selectedNeuronPart, onSele
 export default function Mind3DScene(props: Mind3DSceneProps) {
   return (
     <Canvas
-      camera={{ position: props.mode === 'neuron' ? [0.6, 1.1, 6.4] : [0, 0.3, 9.6], fov: 43, near: 0.1, far: 60 }}
+      camera={{ position: props.mode === 'neuron' ? [0.6, 1.1, 6.4] : [0, 0.15, 9.4], fov: 43, near: 0.1, far: 60 }}
       dpr={[1, 1.55]}
       gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
-      onCreated={({ gl }) => { gl.setClearColor('#050913', 1); }}
+      onCreated={({ gl }) => { gl.setClearColor('#07090e', 1); }}
       fallback={<div className="mind3d-fallback">Your browser could not initialize WebGL. Switch to the 2D mind editor.</div>}
     >
       <SceneContents {...props} />

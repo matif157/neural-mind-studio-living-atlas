@@ -4,8 +4,10 @@ import {
   Pencil, Save, ShieldAlert, Trash2, Unlink, X,
 } from 'lucide-react';
 import {
-  MIND_RELATIONS, NODE_STATUSES, PROVENANCE_LABELS, SENSITIVITY_LEVELS, VALENCES,
-  type MindRelation, type Provenance, type SensitivityLevel,
+  CONFIDENCE_BANDS, EVIDENCE_CLASSES, MIND_DIMENSIONS, MIND_RELATIONS, NODE_STATUSES,
+  PROVENANCE_LABELS, SENSITIVITY_LEVELS, SUGGESTION_STATUSES, TEMPORAL_STATUSES,
+  TIMELINE_ERAS, VALENCES, type EvidenceClass, type MindRelation, type Provenance,
+  type SensitivityLevel,
 } from '@shared/domain';
 import { useMindStore } from '../store/mindStore';
 import { useUiStore } from '../store/uiStore';
@@ -36,6 +38,9 @@ function Inspector({ selectedNode, selectedEdge }: InspectorProps) {
   const [edgeDraft, setEdgeDraft] = useState<{
     relation: MindRelation; customRelation: string; weight: number; note: string;
     explanation: string; direction: 'forward' | 'reverse' | 'bidirectional'; provenance: Provenance;
+    approval: 'pending' | 'approved' | 'rejected' | 'edited';
+    confidenceBand: 'exploratory' | 'supported' | 'well-supported';
+    evidenceClass: EvidenceClass;
   } | null>(null);
 
   useEffect(() => {
@@ -50,6 +55,9 @@ function Inspector({ selectedNode, selectedEdge }: InspectorProps) {
       explanation: selectedEdge.data?.explanation ?? '',
       direction: selectedEdge.data?.direction ?? 'forward',
       provenance: selectedEdge.data?.provenance ?? 'user-confirmed',
+      approval: selectedEdge.data?.approval ?? 'approved',
+      confidenceBand: selectedEdge.data?.confidenceBand ?? 'exploratory',
+      evidenceClass: selectedEdge.data?.evidenceClass ?? 'system-hypothesis',
     });
     else setEdgeDraft(null);
   }, [selectedEdge?.id, selectedEdge?.data]);
@@ -108,6 +116,23 @@ function Inspector({ selectedNode, selectedEdge }: InspectorProps) {
         <select className="field-control" value={edgeDraft.provenance} onChange={(event) => setEdgeDraft({ ...edgeDraft, provenance: event.target.value as Provenance })}>
           {PROVENANCE_LABELS.map((item) => <option key={item} value={item}>{item}</option>)}
         </select>
+        <div className="field-grid">
+          <div><label className="field-label">Review state</label>
+            <select className="field-control" value={edgeDraft.approval} onChange={(event) => setEdgeDraft({ ...edgeDraft, approval: event.target.value as typeof edgeDraft.approval })}>
+              {SUGGESTION_STATUSES.map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+          </div>
+          <div><label className="field-label">Support band</label>
+            <select className="field-control" value={edgeDraft.confidenceBand} onChange={(event) => setEdgeDraft({ ...edgeDraft, confidenceBand: event.target.value as typeof edgeDraft.confidenceBand })}>
+              {CONFIDENCE_BANDS.map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+          </div>
+        </div>
+        <label className="field-label">Evidence class</label>
+        <select className="field-control" value={edgeDraft.evidenceClass} onChange={(event) => setEdgeDraft({ ...edgeDraft, evidenceClass: event.target.value as EvidenceClass })}>
+          {EVIDENCE_CLASSES.map((item) => <option key={item} value={item}>{item}</option>)}
+        </select>
+        <p className="muted-note">Support describes how well your own notes back a proposed link. It is never a risk score or certainty of causation.</p>
         <div className="inspector-actions">
           <button className="primary-button" onClick={() => updateEdge(selectedEdge.id, { ...edgeDraft })}><Save size={14} /> Save relationship</button>
           <button className="icon-button" title="Reverse source and target" onClick={() => reverseEdge(selectedEdge.id)}><ArrowLeftRight size={16} /></button>
@@ -204,6 +229,37 @@ function Inspector({ selectedNode, selectedEdge }: InspectorProps) {
         {SENSITIVITY_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}
       </select>
       <p className="muted-note">Private and sensitive concepts are masked until revealed for a session. Restricted concepts never appear in standard 2D/3D views.</p>
+      <div className="inspector-section-title">Personal atlas context</div>
+      <div className="field-grid">
+        <div><label className="field-label">Primary dimension</label>
+          <select className="field-control" value={draft.dimension ?? ''} onChange={(event) => patch({ dimension: event.target.value ? event.target.value as typeof draft.dimension : undefined })}>
+            <option value="">Infer from node type</option>
+            {MIND_DIMENSIONS.map((dimension) => <option key={dimension.id} value={dimension.id}>{dimension.label}</option>)}
+          </select>
+        </div>
+        <div><label className="field-label">Temporal status</label>
+          <select className="field-control" value={draft.temporalStatus ?? 'current'} onChange={(event) => patch({ temporalStatus: event.target.value as typeof draft.temporalStatus })}>
+            {TEMPORAL_STATUSES.map((item) => <option key={item} value={item}>{item}</option>)}
+          </select>
+        </div>
+      </div>
+      <div className="field-grid">
+        <div><label className="field-label">Timeframe in your words</label>
+          <input className="field-control" value={draft.timePeriod ?? ''} placeholder="e.g. childhood, 2019, recently…" onChange={(event) => patch({ timePeriod: event.target.value || undefined })} />
+        </div>
+        <div><label className="field-label">Timeline era</label>
+          <select className="field-control" value={draft.era ?? 'undated'} onChange={(event) => patch({ era: event.target.value as typeof draft.era })}>
+            {TIMELINE_ERAS.map((item) => <option key={item} value={item}>{item}</option>)}
+          </select>
+        </div>
+      </div>
+      <label className="field-label">Evidence class</label>
+      <select className="field-control" value={draft.evidenceClass ?? 'directly-reported'} onChange={(event) => patch({ evidenceClass: event.target.value as EvidenceClass })}>
+        {EVIDENCE_CLASSES.map((item) => <option key={item} value={item}>{item}</option>)}
+      </select>
+      <label className="field-label">Why you recorded this (optional)</label>
+      <textarea className="field-control field-textarea" rows={2} value={draft.rationale ?? ''} onChange={(event) => patch({ rationale: event.target.value || undefined })} />
+      <p className="muted-note">Only “professionally-established” may describe a clinical fact, and only when you explicitly supply that information. Nothing here is a diagnosis.</p>
       {source && (
         <div className="evidence-block">
           <div className="connected-heading"><span>Source passage</span><strong>{source.document.title}</strong></div>

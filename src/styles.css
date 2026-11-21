@@ -923,3 +923,233 @@ kbd { font: 9px var(--font-mono); color: #b9dbe3; border: 1px solid rgba(125, 16
   .import-steps { grid-template-columns: 1fr; }
   .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* ------------------------------------------------------------------ */
+/* Full-bleed conceptual atlas presentation                           */
+/* Overrides the older three-column 3D layout while keeping the same  */
+/* editing panels available from the Regions / Details sheet.         */
+/* ------------------------------------------------------------------ */
+.mind3d-workspace {
+  position: relative;
+  display: block;
+  grid-template-columns: none;
+  background: #07090e;
+}
+.mind3d-main { height: 100%; }
+.mind3d-sidebar,
+.mind3d-workspace > .inspector-panel,
+.mind3d-workspace > .mind3d-anatomy-panel {
+  position: absolute;
+  z-index: 12;
+  top: 43px;
+  bottom: 33px;
+  width: min(300px, 86vw);
+  max-height: none;
+  border: 1px solid rgba(126, 156, 192, .16);
+  box-shadow: 0 18px 54px rgba(0, 0, 0, .48);
+  transition: transform .2s ease, opacity .2s ease;
+}
+.mind3d-sidebar { left: 0; transform: translateX(-105%); }
+.mind3d-workspace > .inspector-panel,
+.mind3d-workspace > .mind3d-anatomy-panel { right: 0; left: auto; transform: translateX(105%); }
+.mind3d-workspace.regions-open .mind3d-sidebar,
+.mind3d-workspace.details-open > .inspector-panel,
+.mind3d-workspace.details-open > .mind3d-anatomy-panel { transform: none; }
+
+.mind3d-topline { height: 43px; min-height: 43px; border-bottom-color: rgba(0, 230, 255, .12); background: rgba(7, 9, 14, .92); }
+.mind3d-topline > div:first-child { color: #8da0b0; }
+.mind3d-live-dot { background: #00e6ff; box-shadow: 0 0 9px rgba(0, 230, 255, .85); }
+.mind3d-top-actions button { border-color: rgba(0, 230, 255, .18); color: #a9c6d0; background: rgba(10, 20, 28, .8); }
+.mind3d-scene-wrap {
+  background: radial-gradient(ellipse at 50% 46%, rgba(18, 112, 128, .2), transparent 46%),
+              radial-gradient(ellipse at 50% 100%, rgba(11, 69, 82, .14), transparent 48%),
+              #07090e;
+}
+.mind3d-scene-wrap::after { border-color: rgba(0, 230, 255, .045); box-shadow: inset 0 0 120px rgba(0, 0, 0, .42); }
+
+.mind3d-frame-controls {
+  position: absolute;
+  z-index: 5;
+  top: 16px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid rgba(126, 156, 192, .14);
+  border-radius: 7px;
+  background: rgba(7, 9, 14, .72);
+  backdrop-filter: blur(12px);
+}
+.mind3d-frame-controls button {
+  min-width: 34px;
+  height: 24px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 4px;
+  color: #8da0b0;
+  background: transparent;
+  font: 9px var(--font-mono);
+  letter-spacing: .08em;
+  cursor: pointer;
+}
+.mind3d-frame-controls button.is-active { color: #00e6ff; background: rgba(0, 230, 255, .12); }
+.mind3d-frame-controls button:hover { color: #dffbff; background: rgba(0, 230, 255, .08); }
+.mind3d-frame-controls button svg { vertical-align: middle; }
+
+.mind3d-concept-chip {
+  position: absolute;
+  z-index: 4;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border: 1px solid rgba(126, 156, 192, .14);
+  border-radius: 6px;
+  color: #8da0b0;
+  background: rgba(13, 17, 26, .78);
+  font: 9px var(--font-mono);
+  letter-spacing: .1em;
+  pointer-events: none;
+}
+.mind3d-concept-chip span { color: #00e6ff; }
+.mind3d-concept-chip i { color: #405568; font-style: normal; }
+
+.mind3d-map-label {
+  position: absolute;
+  z-index: 4;
+  left: 18px;
+  bottom: 148px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #8da0b0;
+  font: 9px var(--font-mono);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+.mind3d-view-toggle { top: 50px; right: 16px; padding: 2px; background: rgba(7, 9, 14, .7); }
+.mind3d-view-toggle button { padding: 5px 8px; font-size: 8px; }
+.mind3d-view-toggle button.active { border-color: rgba(0, 230, 255, .25); color: #dffbff; background: rgba(0, 230, 255, .1); }
+
+.mind3d-mobile-sheet {
+  position: absolute;
+  z-index: 6;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  padding: 5px;
+  border: 1px solid rgba(126, 156, 192, .14);
+  border-radius: 10px;
+  background: rgba(7, 9, 14, .74);
+  backdrop-filter: blur(16px);
+}
+.mind3d-sheet-tabs { display: grid; grid-template-columns: 1fr 1fr 61px; gap: 4px; margin-bottom: 5px; }
+.mind3d-sheet-tabs button {
+  height: 28px;
+  border: 1px solid rgba(126, 156, 192, .14);
+  border-radius: 5px;
+  color: #cbd9ec;
+  background: rgba(13, 17, 26, .86);
+  font: 9px Inter, ui-sans-serif, sans-serif;
+  cursor: pointer;
+}
+.mind3d-sheet-tabs button.is-active { border-color: rgba(0, 230, 255, .42); color: #00e6ff; background: rgba(0, 230, 255, .1); }
+.mind3d-timeline { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 2px 5px; }
+.mind3d-timeline-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  color: #8da0b0;
+  background: transparent;
+  font: 9px var(--font-mono);
+  letter-spacing: .14em;
+  cursor: pointer;
+}
+.mind3d-timeline-filters { display: flex; gap: 3px; }
+.mind3d-timeline-filters button {
+  padding: 3px 6px;
+  border: 0;
+  border-radius: 4px;
+  color: #8da0b0;
+  background: transparent;
+  font: 8px var(--font-mono);
+  cursor: pointer;
+}
+.mind3d-timeline-filters button.is-active { color: #00e6ff; background: rgba(0, 230, 255, .14); }
+.mind3d-timeline-cards { display: flex; gap: 6px; overflow-x: auto; padding: 0 0 3px; scrollbar-width: thin; }
+.mind3d-timeline-card {
+  display: flex;
+  flex: 0 0 168px;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 48px;
+  padding: 5px 8px;
+  border: 1px solid rgba(126, 156, 192, .18);
+  border-radius: 6px;
+  color: #dbe8fa;
+  background: rgba(13, 17, 26, .76);
+  text-align: left;
+  cursor: pointer;
+}
+.mind3d-timeline-card:hover { border-color: rgba(0, 230, 255, .34); }
+.mind3d-timeline-card.is-active { border-color: rgba(0, 230, 255, .5); background: rgba(0, 230, 255, .1); }
+.mind3d-timeline-card.is-masked { opacity: .66; }
+.mind3d-card-date { color: #8da0b0; font: 8px var(--font-mono); letter-spacing: .1em; }
+.mind3d-card-kind { margin-left: auto; color: rgba(141, 160, 176, .7); font: 7px var(--font-mono); letter-spacing: .1em; }
+.mind3d-card-date { display: inline-block; }
+.mind3d-card-kind { position: relative; top: -11px; display: block; text-align: right; }
+.mind3d-card-label { overflow: hidden; color: #f2f6fd; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.mind3d-timeline-empty { color: #71849e; font-size: 8px; }
+.mind3d-mobile-sheet .mind3d-controls-hint { padding: 4px 2px 0; background: transparent; color: #607585; text-align: center; }
+.mind3d-mobile-sheet .mind3d-private-status { margin-top: 3px; }
+
+.mind3d-focus-actions { z-index: 7; top: 88px; right: 16px; left: auto; transform: none; flex-wrap: wrap; justify-content: flex-end; max-width: 45%; }
+.mind3d-focus-actions button { border-color: rgba(0, 230, 255, .18); color: #9fc7d1; background: rgba(7, 9, 14, .8); font-size: 8px; }
+.mind3d-notice { border-color: rgba(0, 230, 255, .24); color: #c8f4fb; background: rgba(8, 25, 32, .94); }
+.mind3d-bottomline { background: #07090e; }
+
+/* Keep the 3D presentation full-bleed under a single compact app header. */
+.app-shell:has(.mind3d-workspace) .app-header {
+  height: 56px;
+  min-height: 56px;
+  flex-wrap: nowrap;
+  padding: 0 12px;
+  gap: 8px;
+}
+.app-shell:has(.mind3d-workspace) .brand-lockup { min-width: 0; flex: 0 0 auto; }
+.app-shell:has(.mind3d-workspace) .workspace-nav { order: 0; width: auto; flex: 1 1 auto; min-width: 0; height: 100%; }
+.app-shell:has(.mind3d-workspace) .workspace-tab { height: 27px; padding: 0 7px; font-size: 8px; }
+.app-shell:has(.mind3d-workspace) .header-actions { flex: 0 0 auto; min-width: 0; }
+
+.mind3d-sheet-utilities { display: flex; align-items: center; gap: 4px; margin: 0 2px 5px; }
+.mind3d-sheet-utilities button {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 22px;
+  border: 1px solid rgba(126, 156, 192, .14);
+  border-radius: 4px;
+  color: #8da0b0;
+  background: rgba(13, 17, 26, .86);
+  cursor: pointer;
+}
+.mind3d-sheet-utilities button:hover { color: #00e6ff; border-color: rgba(0, 230, 255, .3); }
+.mind3d-sheet-utilities span { color: #607585; font: 8px var(--font-mono); letter-spacing: .06em; }
+
+@media (max-width: 680px) {
+  .mind3d-frame-controls { top: 12px; left: 10px; gap: 1px; padding: 2px; }
+  .mind3d-frame-controls button { min-width: 29px; height: 22px; padding: 0 4px; font-size: 8px; }
+  .mind3d-concept-chip { top: 42px; right: 10px; font-size: 8px; }
+  .mind3d-view-toggle { top: 12px; right: 10px; }
+  .mind3d-view-toggle button { padding: 5px; }
+  .mind3d-map-label { left: 12px; bottom: 154px; font-size: 7px; }
+  .mind3d-focus-actions { top: 76px; right: 10px; max-width: 62%; }
+  .mind3d-mobile-sheet { left: 6px; right: 6px; bottom: 6px; }
+  .mind3d-timeline-card { flex-basis: 150px; }
+}

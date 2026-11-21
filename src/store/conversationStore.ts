@@ -1,7 +1,9 @@
 import { create } from 'zustand';
 import {
-  clientSettingsSchema, conversationEventSchema, reflectionSchema,
-  type AiAnalysis, type ClientSettings, type ConversationEvent, type ExerciseState, type Reflection,
+  checkInEntrySchema, clientSettingsSchema, conversationEventSchema, decisionRecordSchema,
+  journalEntrySchema, reflectionSchema,
+  type AiAnalysis, type CheckInEntry, type ClientSettings, type ConversationEvent,
+  type DecisionRecord, type ExerciseState, type JournalEntry, type Reflection,
 } from '@shared/schemas';
 import type { AiProviderId } from '@shared/domain';
 import type { StoredAnalysis } from '../lib/patterns';
@@ -71,9 +73,13 @@ interface ConversationState {
   settings: ClientSettings;
   exerciseStates: Record<string, ExerciseState>;
   reflections: Reflection[];
+  journalEntries: JournalEntry[];
+  checkIns: CheckInEntry[];
+  decisionRecords: DecisionRecord[];
   threads: NarrativeThread[];
   segments: NarrativeSegment[];
   links: NarrativeLink[];
+  sensitivePrivateMode: boolean;
   streaming: { active: boolean; text: string; status: string };
   hydrated: boolean;
   newConversation: () => string;
@@ -89,6 +95,14 @@ interface ConversationState {
   setModel: (provider: AiProviderId, model: string) => void;
   saveExerciseState: (state: ExerciseState) => void;
   saveReflection: (reflection: Reflection) => void;
+  saveJournalEntry: (entry: JournalEntry) => void;
+  updateJournalEntry: (id: string, patch: Partial<JournalEntry>) => void;
+  deleteJournalEntry: (id: string) => void;
+  saveCheckIn: (entry: CheckInEntry) => void;
+  deleteCheckIn: (id: string) => void;
+  saveDecisionRecord: (record: DecisionRecord) => void;
+  deleteDecisionRecord: (id: string) => void;
+  setSensitivePrivateMode: (enabled: boolean) => void;
   deleteEvent: (id: string) => void;
   updateEventText: (id: string, text: string) => void;
   updateAnalysis: (id: string, patch: Partial<AiAnalysis>) => void;
@@ -102,7 +116,7 @@ interface ConversationState {
   deleteSegment: (segmentId: string) => void;
   addLink: (link: Omit<NarrativeLink, 'id' | 'createdAt'>) => void;
   deleteLink: (linkId: string) => void;
-  hydrate: (data: Partial<Pick<ConversationState, 'conversations' | 'activeConversationId' | 'events' | 'analyses' | 'proposals' | 'settings' | 'exerciseStates' | 'reflections' | 'threads' | 'segments' | 'links'>>) => void;
+  hydrate: (data: Partial<Pick<ConversationState, 'conversations' | 'activeConversationId' | 'events' | 'analyses' | 'proposals' | 'settings' | 'exerciseStates' | 'reflections' | 'journalEntries' | 'checkIns' | 'decisionRecords' | 'threads' | 'segments' | 'links' | 'sensitivePrivateMode'>>) => void;
   clearConversationsOnly: () => void;
   clearAll: () => void;
 }
@@ -139,9 +153,13 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
   settings: defaultSettings,
   exerciseStates: {},
   reflections: [],
+  journalEntries: [],
+  checkIns: [],
+  decisionRecords: [],
   threads: [],
   segments: [],
   links: [],
+  sensitivePrivateMode: false,
   streaming: { active: false, text: '', status: '' },
   hydrated: false,
 
@@ -213,6 +231,38 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
   saveReflection: (reflection) => set((state) => ({
     reflections: [...state.reflections, reflectionSchema.parse(reflection)],
   })),
+
+  saveJournalEntry: (entry) => set((state) => ({
+    journalEntries: [...state.journalEntries, journalEntrySchema.parse(entry)],
+  })),
+
+  updateJournalEntry: (entryId, patch) => set((state) => ({
+    journalEntries: state.journalEntries.map((entry) => entry.id === entryId
+      ? journalEntrySchema.parse({ ...entry, ...patch, updatedAt: now() })
+      : entry),
+  })),
+
+  deleteJournalEntry: (entryId) => set((state) => ({
+    journalEntries: state.journalEntries.filter((entry) => entry.id !== entryId),
+  })),
+
+  saveCheckIn: (entry) => set((state) => ({
+    checkIns: [...state.checkIns, checkInEntrySchema.parse(entry)],
+  })),
+
+  deleteCheckIn: (entryId) => set((state) => ({
+    checkIns: state.checkIns.filter((entry) => entry.id !== entryId),
+  })),
+
+  saveDecisionRecord: (record) => set((state) => ({
+    decisionRecords: [...state.decisionRecords, decisionRecordSchema.parse(record)],
+  })),
+
+  deleteDecisionRecord: (recordId) => set((state) => ({
+    decisionRecords: state.decisionRecords.filter((record) => record.id !== recordId),
+  })),
+
+  setSensitivePrivateMode: (sensitivePrivateMode) => set({ sensitivePrivateMode }),
 
   deleteEvent: (eventId) => set((state) => ({
     events: state.events.filter((event) => event.id !== eventId),
@@ -313,13 +363,16 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
 
   clearConversationsOnly: () => set({
     conversations: [], activeConversationId: '', events: [], analyses: [], proposals: [],
-    exerciseStates: {}, reflections: [], threads: [], segments: [], links: [],
+    exerciseStates: {}, reflections: [], journalEntries: [], checkIns: [], decisionRecords: [],
+    threads: [], segments: [], links: [],
     streaming: { active: false, text: '', status: '' },
   }),
 
   clearAll: () => set({
     conversations: [], activeConversationId: '', events: [], analyses: [], proposals: [],
-    exerciseStates: {}, reflections: [], threads: [], segments: [], links: [],
+    exerciseStates: {}, reflections: [], journalEntries: [], checkIns: [], decisionRecords: [],
+    threads: [], segments: [], links: [],
+    sensitivePrivateMode: false,
     streaming: { active: false, text: '', status: '' },
     settings: defaultSettings,
   }),

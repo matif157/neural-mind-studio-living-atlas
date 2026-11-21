@@ -30,7 +30,7 @@ const edge = (id: string, source: string, target: string, relation: MindRelation
   target,
   type: 'neural',
   animated: true,
-  data: { relation, weight, note, signal: true, direction: 'forward', provenance: 'seed', confidence: null, createdAt: 'seed' },
+  data: { relation, weight, note, signal: true, direction: 'forward', provenance: 'seed', confidence: null, approval: 'approved', createdAt: 'seed' },
 });
 
 export const seedNodes: MindNode[] = [

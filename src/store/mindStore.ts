@@ -5,8 +5,12 @@ import {
 } from '@xyflow/react';
 import { seedEdges, seedNodes } from '../data/seed';
 import { NODE_META, type MindNodeKind } from '@shared/domain';
-import { evidenceRefSchema, type AiAnalysis, type ProjectFile } from '@shared/schemas';
+import {
+  connectionSuggestionSchema, evidenceRefSchema,
+  type AiAnalysis, type ConnectionSuggestion, type ProjectFile,
+} from '@shared/schemas';
 import type { MindEdge, MindNode, MindNodeData } from '../types/mind';
+import { discoverConnections } from '../lib/connectionDiscovery';
 
 type Snapshot = { nodes: MindNode[]; edges: MindEdge[] };
 type ClipboardData = { nodes: MindNode[]; edges: MindEdge[] } | null;
@@ -39,6 +43,10 @@ interface MindState {
   activeScenario: string | null;
   simulationRunning: boolean;
   sensitiveContentVisible: boolean;
+  /** Whole categories can be hidden without deleting their data. */
+  hiddenKinds: MindNodeKind[];
+  /** Reviewable, non-binding relationship proposals from the offline discovery engine. */
+  suggestions: ConnectionSuggestion[];
   customCategories: CustomCategory[];
   customRelations: CustomRelation[];
   setNodes: (nodes: MindNode[]) => void;
@@ -80,6 +88,13 @@ interface MindState {
   setSimulationRunning: (running: boolean) => void;
   setSensitiveContentVisible: (visible: boolean) => void;
   setNodeSpatial: (id: string, position: { x: number; y: number; z: number } | null) => void;
+  toggleKindVisibility: (kind: MindNodeKind) => void;
+  refreshSuggestions: () => number;
+  addSuggestion: (suggestion: Omit<ConnectionSuggestion, 'id' | 'createdAt' | 'status' | 'updatedAt'>) => void;
+  updateSuggestion: (id: string, patch: Partial<ConnectionSuggestion>) => void;
+  acceptSuggestion: (id: string) => void;
+  rejectSuggestion: (id: string) => void;
+  deleteSuggestion: (id: string) => void;
   resetToStarter: () => void;
   clearChangeLog: () => void;
 }
@@ -110,6 +125,8 @@ const blankData = (kind: MindNodeKind, label?: string, patch: Partial<MindNodeDa
   isGroup: false,
   // Personal thoughts are private until the user chooses otherwise. Masking is not encryption.
   sensitivity: kind === 'thought' ? 'private' : 'standard',
+  temporalStatus: 'current',
+  evidenceClass: 'directly-reported',
   spatial: null,
   ...patch,
 });
@@ -138,6 +155,8 @@ export const useMindStore = create<MindState>((set, get) => ({
   activeScenario: null,
   simulationRunning: true,
   sensitiveContentVisible: false,
+  hiddenKinds: [],
+  suggestions: [],
   customCategories: [],
   customRelations: [],
 
@@ -200,7 +219,7 @@ export const useMindStore = create<MindState>((set, get) => ({
         targetHandle: connection.targetHandle,
         type: 'neural',
         animated: true,
-        data: { relation, weight: 0.6, signal: true, direction: 'forward', provenance: 'user-confirmed', confidence: null, createdAt: stamp() },
+        data: { relation, weight: 0.6, signal: true, direction: 'forward', provenance: 'user-confirmed', confidence: null, approval: 'approved', createdAt: stamp() },
       };
       return commit(state, { edges: addEdge(newEdge, state.edges) as MindEdge[] }, 'Relationship added', `${relation} (${connection.source} → ${connection.target})`);
     });
@@ -343,7 +362,7 @@ export const useMindStore = create<MindState>((set, get) => ({
         data: {
           relation: proposal.relation, weight: proposal.weight, explanation: proposal.explanation,
           provenance: 'ai-suggested', confidence: Math.min(proposal.weight, 0.8),
-          direction: 'forward', signal: true, createdAt: stamp(),
+          approval: 'approved', direction: 'forward', signal: true, createdAt: stamp(),
         },
       });
     }
@@ -405,6 +424,8 @@ export const useMindStore = create<MindState>((set, get) => ({
     edges: file.edges,
     customCategories: file.meta?.customCategories ?? [],
     customRelations: file.meta?.customRelations ?? [],
+    suggestions: file.meta?.suggestions ?? [],
+    hiddenKinds: [],
     activeScenario: null,
   }, 'Project loaded', `${file.nodes.length} node(s), ${file.edges.length} relationship(s)`)),
 
@@ -426,8 +447,76 @@ export const useMindStore = create<MindState>((set, get) => ({
     changeLog: [{ id: makeId('change'), at: stamp(), action: '3D position updated', detail: id, nodeCount: state.nodes.length, edgeCount: state.edges.length }, ...state.changeLog].slice(0, 300),
   })),
 
+  toggleKindVisibility: (kind) => set((state) => ({
+    hiddenKinds: state.hiddenKinds.includes(kind)
+      ? state.hiddenKinds.filter((item) => item !== kind)
+      : [...state.hiddenKinds, kind],
+  })),
+
+  refreshSuggestions: () => {
+    const state = get();
+    const discovered = discoverConnections(state.nodes, { existingEdges: state.edges, limit: 80 });
+    const reviewed = new Map(state.suggestions
+      .filter((item) => item.status !== 'pending')
+      .map((item) => [item.id, item]));
+    const merged = [...discovered.map((item) => reviewed.get(item.id) ?? item), ...reviewed.values()];
+    set({ suggestions: merged });
+    return merged.filter((item) => item.status === 'pending').length;
+  },
+
+  addSuggestion: (input) => set((state) => {
+    const id = makeId('suggestion');
+    const suggestion = connectionSuggestionSchema.parse({
+      ...input, id, status: 'pending', createdAt: stamp(),
+    });
+    if (state.edges.some((edge) => edge.source === suggestion.source && edge.target === suggestion.target && edge.data?.relation === suggestion.relation)) return state;
+    return { suggestions: [...state.suggestions, suggestion] };
+  }),
+
+  updateSuggestion: (id, patch) => set((state) => ({
+    suggestions: state.suggestions.map((item) => item.id === id
+      ? connectionSuggestionSchema.parse({ ...item, ...patch, status: patch.status ?? 'edited', updatedAt: stamp() })
+      : item),
+  })),
+
+  acceptSuggestion: (id) => set((state) => {
+    const suggestion = state.suggestions.find((item) => item.id === id);
+    if (!suggestion || suggestion.status === 'rejected') return state;
+    const exists = state.edges.some((edge) => edge.source === suggestion.source
+      && edge.target === suggestion.target && edge.data?.relation === suggestion.relation);
+    const edge: MindEdge | null = exists ? null : {
+      id: makeId('synapse'), source: suggestion.source, target: suggestion.target,
+      type: 'neural', animated: true,
+      data: {
+        relation: suggestion.relation, weight: 0.5,
+        explanation: suggestion.explanation, note: suggestion.evidence,
+        provenance: 'user-confirmed', confidence: null,
+        approval: 'approved', confidenceBand: suggestion.confidenceBand,
+        evidenceClass: suggestion.evidenceClass, suggestionId: suggestion.id,
+        signal: true, direction: 'forward', createdAt: stamp(),
+      },
+    };
+    return commit(state, {
+      edges: edge ? [...state.edges, edge] : state.edges,
+      suggestions: state.suggestions.map((item) => item.id === id
+        ? { ...item, status: 'approved' as const, updatedAt: stamp() }
+        : item),
+    }, 'Connection confirmed', `“${suggestion.relation}” added to your map as a reviewed connection.`);
+  }),
+
+  rejectSuggestion: (id) => set((state) => ({
+    suggestions: state.suggestions.map((item) => item.id === id
+      ? { ...item, status: 'rejected' as const, updatedAt: stamp() }
+      : item),
+  })),
+
+  deleteSuggestion: (id) => set((state) => ({
+    suggestions: state.suggestions.filter((item) => item.id !== id),
+  })),
+
   resetToStarter: () => set((state) => commit(state, {
-    nodes: clone(seedNodes) as MindNode[], edges: clone(seedEdges) as MindEdge[], activeScenario: null,
+    nodes: clone(seedNodes) as MindNode[], edges: clone(seedEdges) as MindEdge[],
+    suggestions: [], hiddenKinds: [], activeScenario: null,
   }, 'Starter map restored', 'The starter conceptual map was reloaded.')),
 
   clearChangeLog: () => set({ changeLog: [] }),

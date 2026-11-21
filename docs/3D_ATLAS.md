@@ -17,7 +17,15 @@ The explanatory copy in every mode repeats these boundaries on screen.
 - `src/utils/mind3dLayout.ts` assigns a deterministic anchor for **every** node kind and distributes nodes of the same kind with a golden-angle spiral sorted by stable ID. Reloading does not reshuffle the constellation.
 - A node's `data.spatial` value (x/y/z) overrides the generated anchor. Dragging a node in the 3D view calls `setNodeSpatial`, which writes the position into the **same graph node**. The 2D `position` is never touched.
 - Positions persist through the normal graph export/import path because they live in the node data.
-- Camera: drag to orbit, scroll to zoom, right-drag to pan. **Reset** restores the default camera; **Focus selected** pans to the selected concept. Fullscreen is available in the scene toolbar.
+- Camera: drag to orbit, scroll to zoom, right-drag to pan. `FRONT`, `SIDE`, `TOP` and `ISO` provide readable reference angles for the conceptual sculpture. **Fit** returns to `ISO`; **Focus selected** pans to the selected concept. Pause, reset and fullscreen controls live in the bottom sheet so the canvas stays full-bleed.
+- Layout modes: **Kind constellation** uses stored `spatial` positions, **Ten dimensions** clusters by each node's primary life lens, and **Life timeline** places records by the era you stated. Undated records stay separate; order never implies cause.
+- Reduced motion stops idle drift, orbiting and signal particles. Manual rotate, zoom, focus and all editing actions remain available.
+
+## Presentation and timeline
+
+The conceptual map uses the same dark `#07090e` canvas and cyan-dominant sculpture as the reference presentation. A compact chip reports `N NODES · N LINKS`, and a permanent `CONCEPTUAL MAP · NOT A BRAIN SCAN` label distinguishes it from the educational brain and neuron layers. The bottom sheet exposes `Regions` (filters and privacy controls), `Details` (the shared inspector) and `Fit`, alongside `ALL TIME / 7 DAYS / 30 DAYS / 90 DAYS` timeline cards. Clicking a card selects the concept and focuses its position.
+
+These are presentation choices only. Colour, brightness, layout and camera angle never encode diagnosis, severity, risk or biological measurement. Historical harmful thoughts are never converted into strengths, badges, scores or triumphant visuals.
 
 ## Search, filters and inspection
 

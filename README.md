@@ -36,7 +36,7 @@ The default provider is `offline`, so no API key or network access is needed. Se
 
 ## Workspaces
 
-Seventeen workspaces are available from the top navigation (A–Q):
+Twenty-six workspaces are available from the top navigation (A–Z):
 
 | | Workspace | What it does |
 |---|---|---|
@@ -57,6 +57,29 @@ Seventeen workspaces are available from the top navigation (A–Q):
 | O | **History & Analytics** | Counts of what you recorded, with configurable windows and intentionally missing data left missing. |
 | P | **Narrative Threads** | Split long talks into segments, preserve original wording, record self-rated interpretations and connect repeated themes across time. |
 | Q | **Data & Privacy** | Consent, provider/model choice, privacy toggles, export/import, data deletion and the private history import wizard. |
+| R | **Personal Timeline** | Your stated eras in order, with undated records kept separate. Earlier events are never treated as causes. |
+| S | **Connection Explorer** | Reviewable relationship questions with source, target, type, evidence, confidence and status. Nothing is written to the graph until you approve it. |
+| T | **Repetitive Thought Explorer** | Repeated wording presented as a prompt for reflection, not as evidence of illness or a scored pattern. |
+| U | **Trigger & Response Explorer** | Possible situational and response links that you can confirm, edit or reject. |
+| V | **Decision Clarity Studio** | Values, strengths and decisions side by side, without recommendations or predictions. |
+| W | **Reflection Journal** | Private, local-only entries with optional links to concepts; exact wording is preserved. |
+| X | **Context & Continuity** | Check-ins and reflections across time, with explicitly stated timeframes and evidence classes. |
+| Y | **Emotional & Physical Check-In** | Self-rated observations that are never converted into a diagnosis, score or risk label. |
+| Z | **Sensitive Memory Controls** | Session-only reveal, private mode, restricted-content exclusion and deletion controls. Masking is not encryption. |
+
+## Ten dimensions and discovery
+
+Personal concepts can be organised under ten equal-status lenses: Life Timeline, Memories & Experiences, Thoughts & Beliefs, Emotional Landscape, Physical & Internal, Behavioural Patterns, Relationship Patterns, Imagination & Creativity, Personal Strengths, and Decisions & Future. A node has one primary dimension for clustering, but links may cross any boundary. None of these lenses is a clinical category or brain region.
+
+The offline discovery engine (`src/lib/connectionDiscovery.ts`) produces **questions**, not findings. It compares wording, tags and timeframes you recorded, then stores results as `pending` suggestions with an explicit source, target, relation, evidence class (`system-hypothesis`), confidence band and rationale. You can edit, approve, reject or delete each one. Only approval creates a graph edge, marked with `approval: 'approved'` and `provenance: 'user-confirmed'`. Suggestions are included in project exports so review decisions are portable.
+
+Every personal record also carries a temporal status (`historical`, `current`, `recurring`, `future`, `unknown`) and an evidence class (`directly-reported`, `self-believed`, `self-suspected`, `system-hypothesis`, `user-confirmed`, `professionally-established`). Only information you explicitly identify as professionally established may be described that way; the app never upgrades its own hypotheses.
+
+## 3D presentation
+
+The 3D workspace keeps the conceptual mind, educational brain sculpture and neuron teaching model separate. The conceptual map uses a dark `#07090e` canvas, cyan sculpture, `FRONT` / `SIDE` / `TOP` / `ISO` camera presets, a live node/link chip and a `CONCEPTUAL MAP · NOT A BRAIN SCAN` disclaimer. A bottom sheet exposes `Regions`, `Details` and `Fit`, plus timeline filters (`ALL TIME`, `7 DAYS`, `30 DAYS`, `90 DAYS`) and horizontally scrollable record cards.
+
+Three layout modes are available: **Kind constellation** (preserves stored 3D positions), **Ten dimensions** (clusters by primary lens) and **Life timeline** (orders by the era you stated). Reduced-motion settings stop idle animation while preserving manual rotate, zoom and focus. A 2D graph editor remains available for every 3D interaction.
 
 ## AI providers
 
@@ -127,18 +150,19 @@ If you may be in immediate danger or could harm yourself or someone else, contac
 ## Architecture
 
 ```text
-shared/      Domain vocabulary (22 node kinds, privacy levels, 17 workspaces), Zod schemas,
-             taxonomy, safety detector and strict AI JSON contract
+shared/      Domain vocabulary (22 node kinds, 10 dimensions, privacy levels, 26 workspaces),
+             Zod schemas, taxonomy, safety detector and strict AI JSON contract
 server/      Express API, auth, rate limits, provider adapters, safety gate and validation
 src/
   components/  Canvas, nodes, edges, palette, inspector, conversation, 3D workspace,
                import wizard and focused workspaces
   components/three/  React Three Fiber scenes: conceptual mind, brain sculpture, neuron anatomy
-  lib/         API client, SSE parser, IndexedDB, history import, longitudinal patterns
+  lib/         API client, SSE parser, IndexedDB, history import, longitudinal patterns,
+               deterministic relationship discovery
   store/       Zustand graph, conversation, import and UI state (one canonical graph store)
   utils/       Deterministic 3D layout and privacy helpers
   data/        Generic educational starter graph — no personal history
-tests/       API, project file, pattern, safety and import tests
+tests/       API, project file, pattern, safety, import and personal-atlas tests
 docs/        Scientific scope, 3D atlas, safety, import/privacy and verification report
 ```
 

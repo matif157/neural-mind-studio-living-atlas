@@ -30,6 +30,9 @@ export const MIND_RELATIONS = [
   'inhibits', 'signals a need', 'leads to', 'reframes', 'supports', 'conflicts with',
   'co-occurs with', 'associated with', 'evidenced by', 'part of', 'challenges',
   'may indicate', 'context for', 'fulfills', 'contradicts', 'informs',
+  // Exploratory relationship-discovery vocabulary. These never mean "proven cause".
+  'may influence', 'may trigger', 'occurred before', 'coping response to',
+  'alternative explanation', 'requires further exploration',
 ] as const;
 export type MindRelation = (typeof MIND_RELATIONS)[number];
 
@@ -46,6 +49,72 @@ export type Valence = (typeof VALENCES)[number];
 
 export const CERTAINTIES = ['directly-stated', 'possible', 'uncertain'] as const;
 export type Certainty = (typeof CERTAINTIES)[number];
+
+/**
+ * Ten connected dimensions of the personal atlas. A node has one primary dimension for
+ * clustering, but relationships can cross any dimension boundary. These are organisational
+ * lenses for self-understanding, not clinical categories or biological brain regions.
+ */
+export const MIND_DIMENSIONS = [
+  { id: 'timeline', label: 'Life Timeline', short: 'Timeline', color: '#9fc4ff', description: 'Experiences placed in the order you stated. Earlier events are never assumed to cause later ones.', kinds: ['memory', 'situation', 'context', 'conversation'] },
+  { id: 'memories', label: 'Memories & Experiences', short: 'Memories', color: '#a8bde0', description: 'Experiences you remembered, with the personal meaning and timeframe you chose to record.', kinds: ['memory', 'situation', 'reflection'] },
+  { id: 'thoughts', label: 'Thoughts & Beliefs', short: 'Thoughts', color: '#a9b4ff', description: 'Recurring thoughts, interpretations, assumptions and internal disagreements, in your own words.', kinds: ['thought', 'belief', 'pattern', 'knowledge'] },
+  { id: 'emotion', label: 'Emotional Landscape', short: 'Emotions', color: '#f5b94c', description: 'Emotions that can coexist. No single emotion is treated as a personality trait or a cause.', kinds: ['emotion', 'identity', 'safety'] },
+  { id: 'body', label: 'Physical & Internal', short: 'Body', color: '#f18db3', description: 'Bodily observations you noticed. Medical interpretation stays separate from personal observation.', kinds: ['body'] },
+  { id: 'behaviour', label: 'Behavioural Patterns', short: 'Behaviour', color: '#59d3c2', description: 'Actions and tendencies you reported, described without assuming a single cause.', kinds: ['behavior', 'coping'] },
+  { id: 'relationships', label: 'Relationship Patterns', short: 'Relationships', color: '#e0a2c0', description: 'Your needs, boundaries and interpretations. Never a profile of another person.', kinds: ['social', 'need', 'conversation'] },
+  { id: 'imagination', label: 'Imagination & Creativity', short: 'Imagination', color: '#c7a9ff', description: 'Imagination, ambitious scenarios and creative thinking, kept distinct from repetitive loops and from health.', kinds: ['pattern', 'reflection', 'thought'] },
+  { id: 'strengths', label: 'Personal Strengths', short: 'Strengths', color: '#4fd6a8', description: 'Interests, skills, values and resources you identify — protective factors, not inflated claims.', kinds: ['strength', 'value', 'exercise'] },
+  { id: 'decisions', label: 'Decisions & Future', short: 'Decisions', color: '#7fd6a0', description: 'Education, career, finances, relationships and lifestyle directions you are weighing.', kinds: ['goal', 'context', 'need'] },
+] as const;
+export type MindDimensionId = (typeof MIND_DIMENSIONS)[number]['id'];
+export const MIND_DIMENSION_IDS = MIND_DIMENSIONS.map((item) => item.id) as [MindDimensionId, ...MindDimensionId[]];
+
+/** Primary dimension inferred from a node kind. An explicit `data.dimension` always wins. */
+export const KIND_DIMENSION: Record<MindNodeKind, MindDimensionId> = {
+  root: 'timeline', emotion: 'emotion', thought: 'thoughts', pattern: 'thoughts',
+  memory: 'memories', belief: 'thoughts', identity: 'emotion', need: 'relationships',
+  behavior: 'behaviour', context: 'timeline', body: 'body', goal: 'decisions',
+  value: 'strengths', coping: 'behaviour', social: 'relationships', situation: 'timeline',
+  exercise: 'strengths', knowledge: 'thoughts', strength: 'strengths',
+  reflection: 'memories', conversation: 'relationships', safety: 'emotion',
+};
+
+export function getNodeDimension(node: { kind: MindNodeKind; dimension?: MindDimensionId | null }): MindDimensionId {
+  return node.dimension ?? KIND_DIMENSION[node.kind] ?? 'memories';
+}
+
+/** Whether the experience is placed in the past, present, repeated or not yet happening. */
+export const TEMPORAL_STATUSES = ['historical', 'current', 'recurring', 'future', 'unknown'] as const;
+export type TemporalStatus = (typeof TEMPORAL_STATUSES)[number];
+
+/**
+ * Where a statement came from. Only `professionally-established` may represent a clinical
+ * fact, and only when the user explicitly supplies that information. No other value is a diagnosis.
+ */
+export const EVIDENCE_CLASSES = [
+  'directly-reported', 'self-believed', 'self-suspected', 'system-hypothesis',
+  'user-confirmed', 'professionally-established',
+] as const;
+export type EvidenceClass = (typeof EVIDENCE_CLASSES)[number];
+
+/** How well a suggested connection is supported by your own notes — never a severity or risk rating. */
+export const CONFIDENCE_BANDS = ['exploratory', 'supported', 'well-supported'] as const;
+export type ConfidenceBand = (typeof CONFIDENCE_BANDS)[number];
+
+export const SUGGESTION_STATUSES = ['pending', 'approved', 'rejected', 'edited'] as const;
+export type SuggestionStatus = (typeof SUGGESTION_STATUSES)[number];
+
+export const TIMELINE_ERAS = [
+  'childhood', 'adolescence', 'education', 'employment', 'relationships', 'present', 'future', 'undated',
+] as const;
+export type TimelineEra = (typeof TIMELINE_ERAS)[number];
+
+export function eraRank(value: string | undefined | null): number {
+  const normalized = (value ?? '').toLowerCase().trim();
+  const index = TIMELINE_ERAS.indexOf(normalized as TimelineEra);
+  return index >= 0 ? index : TIMELINE_ERAS.length - 1;
+}
 
 export const WORKSPACES = [
   { id: 'atlas', label: 'Mind Atlas', short: 'Atlas', key: 'A', icon: 'circle' },
@@ -65,6 +134,15 @@ export const WORKSPACES = [
   { id: 'analytics', label: 'History & Analytics', short: 'Analytics', key: 'O', icon: 'grid' },
   { id: 'narrative', label: 'Narrative Threads', short: 'Threads', key: 'P', icon: 'compass' },
   { id: 'settings', label: 'Data & Privacy', short: 'Privacy', key: 'Q', icon: 'shield' },
+  { id: 'timeline', label: 'Personal Timeline', short: 'Timeline', key: 'R', icon: 'calendar' },
+  { id: 'connections', label: 'Connection Explorer', short: 'Connections', key: 'S', icon: 'link' },
+  { id: 'loops', label: 'Repetitive Thought Explorer', short: 'Loops', key: 'T', icon: 'repeat' },
+  { id: 'triggers', label: 'Trigger & Response Explorer', short: 'Triggers', key: 'U', icon: 'arrow' },
+  { id: 'decisions', label: 'Decision Clarity Studio', short: 'Decisions', key: 'V', icon: 'compass' },
+  { id: 'journal', label: 'Reflection Journal', short: 'Journal', key: 'W', icon: 'book' },
+  { id: 'continuity', label: 'Context & Continuity', short: 'Continuity', key: 'X', icon: 'file' },
+  { id: 'checkin', label: 'Emotional & Physical Check-In', short: 'Check-in', key: 'Y', icon: 'pulse' },
+  { id: 'privacy', label: 'Sensitive Memory Controls', short: 'Sensitive', key: 'Z', icon: 'lock' },
 ] as const;
 export type WorkspaceId = (typeof WORKSPACES)[number]['id'];
 
