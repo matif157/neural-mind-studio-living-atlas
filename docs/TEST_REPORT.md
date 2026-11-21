@@ -1,10 +1,10 @@
 # Verification report
 
 Date: 2026-11-21  
-Branch: `codex/personal-mind-atlas`  
+Branch: `integration/app44-v3` (unified app)  
 Repository: `matif157/neural-mind-studio-living-atlas`
 
-This report records the final verification performed for the Living Mind Atlas release, including the Personal Mind Atlas extension (ten dimensions, 3D cognitive universe, educational anatomical brain model, evidence-aware relationship review). The application is local-first and can run without a model provider; all browser checks used the built-in `offline` provider unless stated otherwise.
+This report records verification for the **unified build**: the original 2D Living Atlas merged with the v3 / Base44-equivalent app and its complete 3D model. It covers ten life dimensions, reviewable relationship discovery, two 3D presentations (full-bleed conceptual/brain/neuron and the lighter accessible universe), the safety gate and the private history importer. The application is local-first and can run without a model provider; browser checks used the built-in `offline` provider and the single-origin production server at `http://localhost:8787`.
 
 ## Automated checks
 
@@ -25,118 +25,103 @@ Result: **pass**.
 | Check | Result |
 |---|---|
 | TypeScript typecheck | Passed with no errors |
-| Vitest suite | **52 tests passed** (24 baseline + 22 rendered-app + 6 shortcut) |
-| Production Vite build | Passed |
-| Vite output | One non-blocking chunk-size warning |
+| Vitest suite | **103 tests passed across 8 files** |
+| Production Vite build | Passed (1,664 modules transformed) |
+| Vite output | Non-blocking chunk-size and ineffective-dynamic-import warnings (Three.js is intentionally shared across the 3D views) |
 
-The production build emits a warning that the main JavaScript bundle is larger than Vite's default 500 kB advisory threshold. This does not fail the build or block use of the app. It can be addressed later with route-level code splitting; no functional regression was observed.
+### Test files
 
-### Test coverage
+| File | Tests | Coverage |
+|---|---|---|
+| `tests/api.test.ts` | 10 | API contract, strict Zod validation and authentication/rate-limit behaviour. |
+| `tests/projectFile.test.ts` | 9 | v2 export validation, safe parsing, migration of v1 project files and clean seed-graph invariants. |
+| `tests/patterns.test.ts` | 5 | Descriptive, provenance-aware longitudinal pattern utilities. |
+| `tests/safety.test.ts` | 17 | Direct intent, plans and means, harm to others, false-positive control, denials, historical disclosure, medical red flags, diagnostic-language detection and the API gate's no-provider/no-proposal guarantee. |
+| `tests/historyImport.test.ts` | 20 | Exact offsets, segmentation formats, chronology rules, inflection-aware candidate extraction, approval-only graph mutation, stricter privacy inheritance, restricted-node exclusion, rejection and a clean public seed graph. |
+| `tests/personalAtlas.test.ts` | 13 | Ten dimensions and 26 workspaces, inferred/overridable dimension defaults, deterministic discovery with no graph mutation, masking-based discovery, free-text linking, timeline ordering, shared privacy rules, the suggestion edit/approve/reject/delete/refresh lifecycle, portable suggestion export and non-diagnostic vocabulary. |
+| `tests/renderedApp.test.tsx` | 23 | Rendered 2D/3D acceptance tests: all ten dimension controls, WebGL fallback, sensitive/restricted gating in the universe (including `sensitivity`-restricted imports), search and dimension filtering, camera presets, focus sync, reviewable relationship cards, structural/suggested edge exclusion from signal, Inspector sync and privacy gates. |
+| `tests/shortcuts.test.ts` | 6 | Workspace shortcuts, including macOS `Option`/`Alt` resolution from physical `event.code`. |
 
-The suite is split across five files:
+The suite asserts that no high/medium/low risk label or risk score is emitted, that AI output never silently mutates the graph, that imported personal history is never written into seed data, and that relationship suggestions stay pending until the user reviews them.
 
-- `tests/api.test.ts` — API contract, strict Zod validation, provider/safety behaviour and authentication/rate-limit behaviour where exercised through the Express app.
-- `tests/projectFile.test.ts` — v2 export validation, safe parsing and migration of v1 project files, including the new privacy, dimension, 3D position and edge-review fields.
-- `tests/patterns.test.ts` — descriptive, provenance-aware longitudinal pattern utilities used by the Pattern Intelligence workspace.
-- `tests/renderedApp.test.tsx` — 22 jsdom rendered-app tests that mock WebGL as unavailable and verify the accessible fallback.
-- `tests/shortcuts.test.ts` — macOS `Option` and Windows/Linux `Alt` workspace shortcut resolution via physical key codes.
+### Integration notes
 
-The 22 rendered-app tests cover: all ten dimension chips; accessible-list fallback; hidden and secure-view-only protected entries; search filtering without graph mutation; dimension filtering; camera presets and focus controls; 2D/3D selection and Inspector synchronisation; complete relationship disclosure (source, destination, type, supporting information, evidence class, explanation, status); suggested/structural edges excluded from signal; no protected wording leaking into the 2D map; relationship confirm/correct/reject actions; independent `pos3` versus 2D `position` with explicit sync; a 300-node render under a generous time budget; narrow-viewport anatomy access; and DOM cleanup on unmount with no orphaned canvases.
+The unified build was produced by merging `living-atlas` with `origin/living-atlas-v3` on `integration/app44-v3`. Thirteen merge conflicts were resolved with these rules:
 
-The safety tests specifically cover removal of unstated intensity, rejection of invalid categories and relation endpoints, diagnostic-language handling, and fixed crisis guidance when a safety flag is present. AI output is represented only as reviewable proposals; no test path permits an AI response to silently mutate the graph. AI edges are stored with `review: 'suggested'` and `signal: false` until a user promotes them.
+- **One taxonomy:** `shared/domain.ts` is the canonical source for the ten dimension IDs (v3 short IDs) and 26 workspaces. `shared/dimensions.ts` is an adapter that accepts legacy hyphenated IDs from earlier exports.
+- **One store:** the 2D canvas, both 3D views and every focused workspace read the same Zustand graph. Node/edge schemas carry both the original `privacy`/`review` fields and the v3 `sensitivity`/`approval` fields; old exports stay valid.
+- **Suggestions stay inert:** AI-discovered edges are stored as `review: 'suggested'`, `signal: false`, `approval: 'pending'` and are excluded from signal propagation until a user reviews them.
+- **Both 3D presentations were kept:** `Mind3DWorkspace` is the default; the header orbit button switches to `CognitiveUniverse3D`. `BrainAnatomy3D` remains as the educational modal.
+- **No marker leakage:** repository-wide checks confirm no unresolved conflict markers remain in tracked source, docs or styles.
 
 ## Manual browser verification
 
-The local stack was started with:
+The production client, API and GLB asset were served from one origin by `npm run start` at `http://localhost:8787`. The in-app browser was used. **No console errors were observed in any check.**
 
-```bash
-npm run dev
-```
+### Shell and navigation
 
-The web app was opened at `http://localhost:5173`, with Vite proxying `/api` to the Express server on `http://localhost:8787`. Verification used the in-app browser.
+- The app reported `NEURAL MIND STUDIO / LIVING MIND ATLAS`. All **26 workspace tabs A–Z** rendered with their icons and labels: the original A–Q workspaces plus R Personal Timeline, S Connection Explorer, T Repetitive Thought Explorer, U Trigger & Response Explorer, V Decision Clarity Studio, W Reflection Journal, X Context & Continuity, Y Emotional & Physical Check-In and Z Sensitive Memory Controls.
+- The starter graph is generic educational content only (33 concepts, 44 connections in a fresh session). No personal history appears in seed data.
+- The 3D presentation uses a compact 56px app header. The canvas occupied 816×606 at `y=56`, matching the reference presentation's 816×604 at `y=56` within two pixels.
 
-### Twelve-workspace smoke test
+### 3D Cognitive Universe
 
-Each workspace was opened and checked for its expected heading, primary cards and interactive controls. All twelve rendered successfully:
+| Check | Result |
+|---|---|
+| Scene mount | Passed — WebGL canvas present in `.mind3d-scene-wrap`; heading "MIND ATLAS / 3D SPACE" with "Explore the mind". |
+| Presentation | Passed — dark `#07090e` canvas, cyan-dominant conceptual sculpture, `FRONT` / `SIDE` / `TOP` / `ISO` presets, live `33 NODES · 44 LINKS` chip and `CONCEPTUAL MAP · NOT A BRAIN SCAN` disclaimer. |
+| Bottom sheet | Passed — `Regions`, `Details` and `Fit` tabs, Pause/Reset/Fullscreen utilities, `ALL TIME / 7 DAYS / 30 DAYS / 90 DAYS` filters and scrollable timeline cards. |
+| Layouts and privacy | Passed — kind constellation, ten dimensions and life timeline layouts; dimension isolation, reduced motion and shared 2D/3D privacy rules. Restricted records stay out of standard views. |
+| Mind / Neuron / Brain modes | Passed — conceptual network, educational neuron anatomy and separate brain sculpture remain distinct, with their own disclaimers. |
+| Shared store | Passed — concept/link counts come from the same Zustand graph store as the 2D atlas; workspace switching preserves selection and edits. |
 
-| | Workspace | Result |
-|---|---|---|
-| A | Living Mind Map | Passed — canvas, custom nodes/edges and editing controls rendered |
-| B | AI Conversation | Passed — consent gate, composer and analysis area rendered |
-| C | Emotional Observatory | Passed — emotion vocabulary and descriptive summaries rendered |
-| D | Thought Explorer | Passed — thought vocabulary and voice editing rendered |
-| E | Memory Atlas | Passed — user-recorded memory list and provenance controls rendered |
-| F | Pattern Intelligence | Passed — hypotheses, loops, provenance and timeline rendered |
-| G | Reflection Studio | Passed — guided exercise catalogue rendered |
-| H | Neuroscience Explorer | Passed — anatomy explainer and caveat rendered |
-| I | Knowledge Library | Passed — taxonomy search and domain cards rendered |
-| J | Settings & Data Control | Passed — consent, provider, privacy, theme and data controls rendered |
-| K | Narrative Threads | Passed — thread rail, source/segment editor and connection panel rendered |
-| L | Personal Cognitive Universe | Passed — dimension chips, toolbar, accessible list and review panel rendered; 3D layer loads on demand with fallback |
+The GLB asset is served from `/models/conceptual-brain.glb` and the `public/` directory is tracked in the repository. The conceptual sculpture's imported materials are replaced at runtime with presentation-only cyan materials; geometry and personal meaning are unchanged.
 
-No client console errors were observed during the workspace smoke test.
+### Personal atlas and privacy flows
 
-### Personal Mind Atlas verification
+- **Connection Explorer (S):** *Discover connections* produced 21 pending questions against 44 confirmed links. Approving one changed the counters to 20 pending / 45 links and created a user-confirmed edge with `approval: 'approved'` and `provenance: 'user-confirmed'`. No console errors.
+- **Sensitive Memory Controls (Z):** Session private mode and reveal toggles were exercised (`Off → On → Off`, `Masked → Revealed → Masked`) and restored to `Off` / `Masked`. The UI repeated that masking is a shoulder-surfing control, not encryption. No console errors.
+- **Export:** *Export personal data* produced `personal-atlas-export-2026-11-21.json`. A structural check confirmed the envelope contained `graph` (33 nodes, 45 edges, 21 suggestions: 1 approved / 20 pending) and `personalRecords` (`journalEntries`, `checkIns`, `decisionRecords`), plus the explicit warning that the JSON is not encrypted. No raw personal-history text was stored in the repository or tests.
+- **Deletion:** The destructive "Delete local personal records" flow was not clicked in the browser. Its logic is covered by automated store tests and the confirmation copy was inspected in the UI.
 
-- The ten dimensions are rendered as filters and map deterministically from node kind; no dimension is a clinical category or brain location.
-- Workspace shortcuts use physical `event.code` values, so macOS `Option+L` opens the universe even though `event.key` becomes `¬`; the same applies to `Option+K` and `Option+1–0`.
-- The anatomical GLB at `public/models/brain/anatomical-brain.glb` is a procedural Blender-generated teaching model (817 KB), not a scan, and contains no personal data. The viewer states that conceptual pathways are not biological pathways.
-- Relationships exposed for review always include source, destination, type, supporting information, evidence class, explanation and confirmation status. Suggested and structural edges are dashed and excluded from propagation, loop/hub analysis and AI context.
-- Sensitive/restricted entries are hidden from ordinary 3D exploration, the 2D map and search until secure view is explicitly enabled; the Inspector shows a privacy gate instead of the wording.
-- 3D `pos3` is presentation-only and stays independent from the 2D `position` until the user triggers *Explicitly sync to 2D*. The WebGL runtime disposes geometries, materials, controls, observers and animation frames on unmount, and failed initialisation removes its canvas.
+### Private history import end-to-end
 
-Rendered tests execute with WebGL unavailable, so the accessible fallback is exercised directly rather than only inferred. Real GPU rendering should be smoke-tested on a device with WebGL before final deployment.
+Using generic local-only text (no personal history):
 
-### Offline AI conversation and proposal flow
+1. Opened Data & Privacy and confirmed the import wizard and storage-availability notice.
+2. Entered typed text and clicked **Segment and extract candidates**.
+3. Observed 1 passage, 4 pending candidates, 125 bytes, with exact offsets `0–125`.
+4. Expanded the passage. Candidates were `Fear` (emotion, directly-stated), `Anxiety` (emotion, possible), `Avoidance` (behaviour, possible) and `Avoidance` (pattern, uncertain). This confirms inflection matching and that cognitive patterns remain uncertain.
+5. Approved the first candidate. It changed to approved status and an **Open node** link appeared.
+6. Opened the node in the atlas. The inspector showed **Source passage**, the document title, the original text, offsets `0–125`, `MANUAL` format, candidate certainty, and privacy level `sensitive` (the stricter of the document level and the kind default).
 
-The end-to-end review path was exercised as follows:
+No provider was called and no text left the browser during this flow.
 
-1. Enabled AI consent in the Conversation workspace.
-2. Confirmed the provider selector was set to `offline`.
-3. Sent a reflective text message.
-4. Observed SSE status updates from `/api/analyze/stream` and receipt of the structured analysis card. The stream event types are `status`, `token`, `result` and `error`.
-5. Expanded the three returned graph proposals.
-6. Selected **Accept all as drafts**.
-7. Confirmed the app switched to the Atlas workspace and added the accepted items as **draft** nodes, leaving them available for inspection, editing, confirmation or rejection.
+### Earlier verification (carried forward)
 
-Result: **pass**. The original user wording remained stored independently, and no graph mutation occurred until explicit acceptance.
+The previous release's manual pass covered the full eleven-workspace smoke test, the offline AI conversation and proposal-acceptance path, and the Narrative Threads three-pane layout. Those areas were not re-run after the 3D/safety/import/personal-atlas additions; their earlier results (all passed, no console errors) remain valid for the unchanged components.
 
-### Narrative Threads layout check
+A Lighthouse audit on the earlier release reported Accessibility 0.95, Best practices 1.00 and SEO 0.80, with known `color-contrast` and development `robots.txt` findings. It was not repeated for this build.
 
-The Narrative Threads workspace was opened and exercised with generic local-only test text. The three-pane layout rendered correctly: thread rail on the left, source/segment editor in the centre, and echoes/connections/pattern ledger on the right. Splitting a source talk produced separate segment chips; segment fields, confidence, status, connection suggestions and local JSON export were available. The responsive stack layout was verified at an 816 px viewport. No console errors were observed. No personal narrative was written into the repository.
+## Reference comparison caveats
 
-## Accessibility and best-practice audit
+The Base44 presentation at `https://funny-neural-mind-atlas.base44.app/` was inspected only through its rendered DOM/CSS/WebGL output. Its source code, database schema, credentials and deployment pipeline are not reachable from the public URL, so the local implementation is a visual and behavioural approximation rather than a source port.
 
-A Lighthouse audit of the local dev build reported:
+An earlier WebGL pixel sample, taken before the final runtime material override, showed the reference at `bright 9665 / colored 10112 / nonDark 24368` on a `1632×1208` drawing buffer and the local scene at `bright 1516 / colored 17808 / nonDark 19253` on `1264×939`. The buffers have different device-pixel ratios, so raw counts are not directly comparable. After the final material change, the browser hid/throttled animation frames in the background tab and `readPixels` returned all zeros even after a resize event. The final brightness increase is therefore verified by code review and DOM/layout checks, not by a fresh pixel sample. Screenshot capture also requires a visibly focused desktop window.
 
-| Category | Score |
-|---|---:|
-| Accessibility | 0.95 |
-| Best practices | 1.00 |
-| SEO | 0.80 |
+## Known limitations
 
-Known, non-blocking findings:
-
-- `color-contrast` — some text/background combinations fall short of the WCAG contrast threshold. This should be corrected in a future visual pass.
-- `robots-txt is not valid` — the development server does not serve a valid production `robots.txt`. This does not affect local app behaviour.
-
-Screenshot capture during the audit failed because no visible desktop browser tab was available in the verification environment. This did not prevent the page audits above from completing.
-
-## Safety and privacy verification
-
-The final manual pass confirmed the following user-visible boundaries:
-
-- AI consent is off by default.
-- Context sharing of approved/core nodes and recent wording is separately opt-in.
-- API keys are read only by the server from `.env`; the browser never receives them.
-- `MIND_API_TOKEN`, when configured, is kept in `sessionStorage` rather than persistent local storage.
-- Original conversation wording is preserved alongside editable interpretations.
-- Accepted AI graph changes become drafts only and remain reviewable in the inspector.
-- Proposed AI relationships become non-signal-bearing suggestions and never mutate the graph without explicit confirmation, correction or rejection.
-- Sensitive and restricted entries are hidden by default from 3D exploration, 2D search and relationship filtering; exact danger-signal wording is treated only as safety context.
-- “Delete conversations” clears conversation history without resetting settings, theme or consent.
-- Full reset and JSON export/import controls remain under Settings & Data Control.
+| Limitation | Impact |
+|---|---|
+| Main JS bundle is ~1.70 MB (advisory threshold 500 kB) | Slower first load on poor connections; no functional regression. Route-level code splitting is deferred. |
+| `npm audit` reports one high-severity advisory for `zod@3.25.76` (`<4.6.6`, GHSA-mrhx-c7xc-m3w5) | Oversized constrained collections can exhaust memory. The fix requires a breaking Zod 4 migration; not applied in this release. Input sizes are separately bounded in the app and API schemas. |
+| Local IndexedDB and JSON exports are not encrypted | Visual privacy masking is not encryption. No AES-GCM vault is implemented. Use OS-level disk encryption and a private screen. |
+| Base44 internals are inaccessible | Visual parity is based on rendered output only; no source, schema or deployment configuration was copied. |
+| Final WebGL brightness sample blocked by hidden-tab throttling | Layout, controls and code-level material override were verified; a fresh pixel comparison still needs a visibly focused desktop window. |
+| Rule-based safety detection | Can miss unusual phrasing or flag harmless phrasing. It is not a clinical instrument or a crisis service. |
+| Deterministic import extraction and discovery | Miss paraphrases and may propose candidates the user must reject. This is intentional to avoid false precision. |
+| WebGL required for 3D | A fallback message is shown when WebGL is unavailable; the 2D editor remains fully usable. |
 
 ## Conclusion
 
-The implementation meets the release criteria for the Living Mind Atlas and its Personal Mind Atlas extension: all twelve workspaces are functional, the automated suite passes (52 tests), the production build succeeds, the offline AI review path works end to end, and the documented safety and privacy boundaries are enforced in the UI and server pipeline. Remaining Lighthouse findings and the non-blocking bundle-size warning are tracking items rather than release blockers.
+Typecheck, all 103 tests and the production build pass on the unified app. The 26-workspace shell, both 3D presentations, relationship review, privacy controls, export flow, safety gate and private import workflow were exercised in a real browser with no console errors. Documented limitations are tracking items rather than blockers for this release. See `docs/UNIFIED_APP_PLAN.md` for the re-plan and next phase of work.

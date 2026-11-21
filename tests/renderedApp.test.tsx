@@ -40,6 +40,8 @@ function makeNode(
       isGroup: false,
       privacy: 'private',
       safetySignal: false,
+      sensitivity: 'standard',
+      spatial: null,
       ...patch,
     },
   };
@@ -62,6 +64,7 @@ function makeEdge(id: string, source: string, target: string, patch: Partial<Min
       structural: false,
       review: 'confirmed',
       evidence: [],
+      approval: 'approved',
       ...patch,
     },
   };
@@ -138,7 +141,7 @@ describe('rendered personal mind atlas', () => {
     expect(screen.getByTestId('cognitive-universe')).toBeTruthy();
     for (const label of [
       'Timeline', 'Memories', 'Thoughts', 'Emotions', 'Body',
-      'Behaviour', 'Relationships', 'Imagination', 'Strengths', 'Future',
+      'Behaviour', 'Relationships', 'Imagination', 'Strengths', 'Decisions',
     ]) {
       expect(screen.getByRole('button', { name: label })).toBeTruthy();
     }
@@ -171,6 +174,22 @@ describe('rendered personal mind atlas', () => {
     expect(graph.edges).toHaveLength(0);
   });
 
+  it('honours sensitivity-restricted records in the accessible 3D universe', () => {
+    // Imported records can carry sensitivity: 'restricted' while privacy stays
+    // at the store default. Both vocabularies must gate ordinary exploration.
+    const nodes = [
+      makeNode('safe', 'thought', 'Visible thought'),
+      makeNode('imported', 'memory', 'RESTRICTED_IMPORT_WORDING', { sensitivity: 'restricted' }),
+    ];
+    resetStores(nodes);
+    render(<CognitiveUniverse3D />);
+    expect(document.body.textContent).not.toContain('RESTRICTED_IMPORT_WORDING');
+    const graph = filterGraphFor3D(nodes, [], {});
+    expect(graph.nodes.map((node) => node.id)).toEqual(['safe']);
+    fireEvent.click(screen.getByRole('button', { name: 'Reveal protected entries' }));
+    expect(screen.getByRole('button', { name: 'RESTRICTED_IMPORT_WORDING' })).toBeTruthy();
+  });
+
   it('reveals protected entries only when secure view is enabled', () => {
     resetStores([makeNode('secret', 'emotion', 'PRIVATE_WORDING', { privacy: 'restricted' })]);
     render(<CognitiveUniverse3D />);
@@ -198,7 +217,7 @@ describe('rendered personal mind atlas', () => {
     ]);
     render(<CognitiveUniverse3D />);
     fireEvent.click(screen.getByRole('button', { name: 'Emotions' }));
-    expect(useUiStore.getState().dimensionFilter).toBe('emotional-landscape');
+    expect(useUiStore.getState().dimensionFilter).toBe('emotion');
     expect(screen.getByRole('button', { name: 'Only emotion' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Only body' })).toBeNull();
   });
@@ -273,7 +292,7 @@ describe('rendered personal mind atlas', () => {
       makeNode('body', 'body', 'Body signal only'),
       makeNode('emo', 'emotion', 'Emotion only'),
     ]);
-    useUiStore.setState({ dimensionFilter: 'physical-internal' });
+    useUiStore.setState({ dimensionFilter: 'body' });
     render(<MindCanvas onFitRef={() => undefined} />);
     expect(document.body.textContent).toContain('Body signal only');
     expect(document.body.textContent).not.toContain('Emotion only');
@@ -286,7 +305,7 @@ describe('rendered personal mind atlas', () => {
     const inspector = document.querySelector('.inspector-panel') as HTMLElement;
     expect(inspector.textContent).toContain('Node inspector');
     expect((inspector.querySelector('input.field-control') as HTMLInputElement).value).toBe('Two view thought');
-    expect(inspector.textContent).toContain('Personal dimension');
+    expect(inspector.textContent).toContain('Primary dimension');
     expect(inspector.textContent).toContain('Privacy boundary');
   });
 

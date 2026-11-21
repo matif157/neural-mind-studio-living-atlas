@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
 import {
-  BrainCircuit, Check, CircleHelp, Command, Info, Keyboard, Moon, PanelBottom,
+  BrainCircuit, Check, CircleHelp, Command, Info, Keyboard, Moon, Orbit, PanelBottom,
   Sun, X,
 } from 'lucide-react';
 import {
   AI_PROVIDER_META, APP_NAME, APP_SUBNAME, SCHEMA_VERSION, WORKSPACES,
 } from '@shared/domain';
 import {
-  aiAnalysisSchema, clientSettingsSchema, conversationEventSchema, exerciseStateSchema,
-  reflectionSchema,
+  aiAnalysisSchema, checkInEntrySchema, clientSettingsSchema, conversationEventSchema,
+  decisionRecordSchema, exerciseStateSchema, journalEntrySchema, reflectionSchema,
 } from '@shared/schemas';
 import MindCanvas from './components/MindCanvas';
+import Mind3DWorkspace from './components/Mind3DWorkspace';
 import CognitiveUniverse3D from './components/CognitiveUniverse3D';
 import BrainAnatomy3D from './components/BrainAnatomy3D';
 import Toolbar from './components/Toolbar';
@@ -18,10 +19,19 @@ import AnatomyModal from './components/AnatomyModal';
 import ConversationWorkspace from './components/conversation/ConversationWorkspace';
 import { EmotionObservatory, MemoryAtlas, PatternIntelligence, ThoughtExplorer } from './components/workspaces/InsightWorkspaces';
 import { KnowledgeLibrary, NeuroscienceExplorer, ReflectionStudio } from './components/workspaces/PracticeWorkspaces';
+import {
+  BehaviouralSystems, BodyInteroception, HistoryAnalytics, PersonalGrowth, RelationshipDynamics,
+} from './components/workspaces/SystemWorkspaces';
 import SettingsWorkspace from './components/workspaces/SettingsWorkspace';
 import NarrativeThreads from './components/workspaces/NarrativeThreads';
+import {
+  CheckInWorkspace, ConnectionExplorer, ContinuityJournal, DecisionClarityStudio,
+  PersonalTimeline, PrivacyControls, ReflectionJournal, RepetitiveThoughtExplorer,
+  TriggerResponseExplorer,
+} from './components/workspaces/PersonalAtlasWorkspaces';
 import { deleteLocal, readLocal, STORAGE_KEYS, writeLocal } from './lib/db';
 import { workspaceFromShortcut } from './lib/shortcuts';
+import { hydrateImportStore } from './store/importStore';
 import { createProjectFile, downloadProjectFile, migrateProjectFile, validateProjectFile } from './utils/projectFile';
 import { useConversationStore } from './store/conversationStore';
 import { useMindStore } from './store/mindStore';
@@ -40,6 +50,7 @@ function App() {
   const future = useMindStore((state) => state.future);
   const running = useMindStore((state) => state.simulationRunning);
   const changeLog = useMindStore((state) => state.changeLog);
+  const suggestions = useMindStore((state) => state.suggestions);
   const undo = useMindStore((state) => state.undo);
   const redo = useMindStore((state) => state.redo);
   const copySelection = useMindStore((state) => state.copySelection);
@@ -66,6 +77,8 @@ function App() {
   const [ready, setReady] = useState(false);
   const [showAnatomy, setShowAnatomy] = useState(false);
   const [showBrain3D, setShowBrain3D] = useState(false);
+  // The full-bleed 3D workspace is the default; the lighter accessible universe stays available.
+  const [simpleUniverse, setSimpleUniverse] = useState(false);
   const [saved, setSaved] = useState(true);
   const [toast, setToast] = useState('');
   const fileInput = useRef<HTMLInputElement>(null);
@@ -128,6 +141,15 @@ function App() {
         const reflectionsData = Array.isArray(conversationSource.reflections)
           ? conversationSource.reflections.map((item) => reflectionSchema.safeParse(item)).flatMap((result) => result.success ? [result.data] : []).slice(0, 5000)
           : [];
+        const journalData = Array.isArray(conversationSource.journalEntries)
+          ? conversationSource.journalEntries.map((item) => journalEntrySchema.safeParse(item)).flatMap((result) => result.success ? [result.data] : []).slice(0, 5000)
+          : [];
+        const checkInsData = Array.isArray(conversationSource.checkIns)
+          ? conversationSource.checkIns.map((item) => checkInEntrySchema.safeParse(item)).flatMap((result) => result.success ? [result.data] : []).slice(0, 5000)
+          : [];
+        const decisionsData = Array.isArray(conversationSource.decisionRecords)
+          ? conversationSource.decisionRecords.map((item) => decisionRecordSchema.safeParse(item)).flatMap((result) => result.success ? [result.data] : []).slice(0, 2000)
+          : [];
         const threadsData = Array.isArray(narrativeSource.threads)
           ? (narrativeSource.threads as NarrativeThread[]).filter((item) => item && typeof item.id === 'string' && typeof item.title === 'string').slice(0, 500)
           : [];
@@ -145,19 +167,29 @@ function App() {
           proposals: proposalsData,
           exerciseStates: exercisesData,
           reflections: reflectionsData,
+          journalEntries: journalData,
+          checkIns: checkInsData,
+          decisionRecords: decisionsData,
+          sensitivePrivateMode: conversationSource.sensitivePrivateMode === true
+            || (settingsRaw as { sensitivePrivateMode?: unknown } | null)?.sensitivePrivateMode === true,
           threads: threadsData,
           segments: segmentsData,
           links: linksData,
           settings: safeSettings,
         });
       } else if (safeSettings) {
-        hydrateConversation({ settings: safeSettings });
+        hydrateConversation({
+          settings: safeSettings,
+          sensitivePrivateMode: (settingsRaw as { sensitivePrivateMode?: unknown } | null)?.sensitivePrivateMode === true,
+        });
       } else {
         hydrateConversation({});
       }
       if (!cancelled) setReady(true);
     };
     void restore();
+    // Imported personal history is restored only when long-term storage is enabled.
+    void hydrateImportStore();
     return () => { cancelled = true; };
   }, [hydrateConversation, loadProject]);
 
@@ -175,7 +207,7 @@ function App() {
           customCategories: state.customCategories,
           customRelations: state.customRelations,
         };
-        void writeLocal(STORAGE_KEYS.graph, createProjectFile(state.nodes, state.edges, meta)).then((ok) => setSaved(ok));
+        void writeLocal(STORAGE_KEYS.graph, createProjectFile(state.nodes, state.edges, meta, state.suggestions)).then((ok) => setSaved(ok));
       }, 500);
     };
     const unsubscribeMind = useMindStore.subscribe(saveGraph);
@@ -183,7 +215,7 @@ function App() {
       window.clearTimeout(conversationTimer);
       setSaved(false);
       conversationTimer = window.setTimeout(() => {
-        void writeLocal(STORAGE_KEYS.settings, state.settings);
+        void writeLocal(STORAGE_KEYS.settings, { ...state.settings, sensitivePrivateMode: state.sensitivePrivateMode });
         void writeLocal(STORAGE_KEYS.narrative, {
           threads: state.threads, segments: state.segments, links: state.links,
         });
@@ -192,6 +224,9 @@ function App() {
             conversations: state.conversations, activeConversationId: state.activeConversationId,
             events: state.events, analyses: state.analyses, proposals: state.proposals,
             exerciseStates: state.exerciseStates, reflections: state.reflections,
+            journalEntries: state.journalEntries, checkIns: state.checkIns,
+            decisionRecords: state.decisionRecords,
+            sensitivePrivateMode: state.sensitivePrivateMode,
           }).then((ok) => setSaved(ok));
         } else {
           void deleteLocal(STORAGE_KEYS.conversation).then(() => setSaved(true));
@@ -230,7 +265,7 @@ function App() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [copySelection, cutSelection, duplicateSelection, notify, pasteClipboard, redo, togglePanel, undo, setWorkspace]);
 
-  const exportProject = () => { downloadProjectFile(createProjectFile(nodes, edges)); notify('Graph exported as JSON'); };
+  const exportProject = () => { downloadProjectFile(createProjectFile(nodes, edges, undefined, suggestions)); notify('Graph and reviewable suggestions exported as JSON'); };
   const importProject = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -249,17 +284,33 @@ function App() {
   const renderWorkspace = () => {
     switch (workspace) {
       case 'atlas': return <MindCanvas onFitRef={setFitCallback} />;
+      case 'universe': return simpleUniverse
+        ? <CognitiveUniverse3D />
+        : <Mind3DWorkspace onOpen2D={() => setWorkspace('atlas')} onOpenCompanion={() => setWorkspace('conversation')} />;
       case 'conversation': return <ConversationWorkspace notify={notify} />;
       case 'emotions': return <EmotionObservatory notify={notify} />;
       case 'thoughts': return <ThoughtExplorer notify={notify} />;
       case 'memories': return <MemoryAtlas notify={notify} />;
       case 'patterns': return <PatternIntelligence notify={notify} />;
+      case 'relationships': return <RelationshipDynamics notify={notify} />;
+      case 'behaviour': return <BehaviouralSystems notify={notify} />;
+      case 'body': return <BodyInteroception notify={notify} />;
       case 'reflection': return <ReflectionStudio notify={notify} />;
+      case 'growth': return <PersonalGrowth notify={notify} />;
       case 'neuroscience': return <NeuroscienceExplorer notify={notify} />;
       case 'library': return <KnowledgeLibrary notify={notify} />;
+      case 'analytics': return <HistoryAnalytics notify={notify} />;
       case 'settings': return <SettingsWorkspace notify={notify} />;
       case 'narrative': return <NarrativeThreads notify={notify} />;
-      case 'universe': return <CognitiveUniverse3D />;
+      case 'timeline': return <PersonalTimeline notify={notify} />;
+      case 'connections': return <ConnectionExplorer notify={notify} />;
+      case 'loops': return <RepetitiveThoughtExplorer notify={notify} />;
+      case 'triggers': return <TriggerResponseExplorer notify={notify} />;
+      case 'decisions': return <DecisionClarityStudio notify={notify} />;
+      case 'journal': return <ReflectionJournal notify={notify} />;
+      case 'continuity': return <ContinuityJournal notify={notify} />;
+      case 'checkin': return <CheckInWorkspace notify={notify} />;
+      case 'privacy': return <PrivacyControls notify={notify} />;
       default: return null;
     }
   };
@@ -273,7 +324,7 @@ function App() {
         </div>
         <nav className="workspace-nav" aria-label="Workspaces">
           {WORKSPACES.map((item) => {
-            const Icon = iconFor(item.id === 'atlas' ? 'circle' : item.id === 'conversation' ? 'users' : item.id === 'emotions' ? 'heart' : item.id === 'thoughts' ? 'lightbulb' : item.id === 'memories' ? 'brain' : item.id === 'patterns' ? 'repeat' : item.id === 'reflection' ? 'check' : item.id === 'neuroscience' ? 'pulse' : item.id === 'library' ? 'book' : item.id === 'narrative' ? 'compass' : item.id === 'universe' ? 'universe' : 'shield');
+            const Icon = iconFor(item.icon);
             return <button key={item.id} className={`workspace-tab ${workspace === item.id ? 'active' : ''}`} onClick={() => setWorkspace(item.id)} aria-current={workspace === item.id ? 'page' : undefined} title={`${item.key} · ${item.label}`}><Icon size={14} /><span>{item.short}</span></button>;
           })}
         </nav>
@@ -281,6 +332,7 @@ function App() {
           <div className={`save-state ${saved ? 'is-saved' : 'is-unsaved'}`}><span />{saved ? 'Saved locally' : 'Saving…'}</div>
           <button className="header-help" onClick={() => setSettingsTheme()} title="Toggle theme" aria-label="Toggle theme">{settings.theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}</button>
           <button className="header-help" onClick={() => togglePanel('shortcuts')} title="Shortcuts" aria-label="Show shortcuts"><Keyboard size={16} /></button>
+          <button className={`header-help ${simpleUniverse ? 'active' : ''}`} onClick={() => { setSimpleUniverse(!simpleUniverse); if (workspace !== 'universe') setWorkspace('universe'); }} title={simpleUniverse ? 'Use the full 3D universe' : 'Use the light accessible universe'} aria-label="Toggle 3D universe presentation"><Orbit size={17} /></button>
           <button className="header-help" onClick={() => setShowBrain3D(true)} title="Anatomical brain model" aria-label="Open anatomical brain model"><BrainCircuit size={17} /></button>
           <button className="header-help" onClick={() => setShowAnatomy(true)} title="About the model" aria-label="About the model"><CircleHelp size={17} /></button>
         </div>

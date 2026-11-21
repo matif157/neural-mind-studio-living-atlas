@@ -1,5 +1,5 @@
 import {
-  dimensionAnchor, dimensionColor, dimensionForKind,
+  dimensionAnchor, dimensionColor, dimensionForKind, normalizeDimensionId,
   type PersonalDimensionId,
 } from '@shared/dimensions';
 import type { PrivacyLevel } from '@shared/domain';
@@ -19,28 +19,39 @@ export function nodePrivacy(node: MindNode): PrivacyLevel {
   return node.data.privacy ?? 'private';
 }
 
+/**
+ * Both vocabularies must agree before wording leaves secure view: the original
+ * storage `privacy` boundary and the v3 display `sensitivity` level. Imported
+ * and personal records can set `sensitivity: 'restricted'` without changing the
+ * default `privacy`, so checking either field alone can expose protected text.
+ */
+function isProtectedOutsideSecureView(node: MindNode): boolean {
+  const privacy = nodePrivacy(node);
+  if (privacy === 'sensitive' || privacy === 'restricted') return true;
+  const sensitivity = node.data.sensitivity;
+  return sensitivity === 'sensitive' || sensitivity === 'restricted';
+}
+
 export function nodeDimension(node: MindNode): PersonalDimensionId {
-  return node.data.dimension ?? dimensionForKind(node.data.kind);
+  return normalizeDimensionId(node.data.dimension) ?? dimensionForKind(node.data.kind);
 }
 
 /** No personal wording for sensitive or restricted nodes leaves the secure view. */
 export function displayLabel(node: MindNode, secureView = false): string {
-  const privacy = nodePrivacy(node);
-  if (!secureView && (privacy === 'sensitive' || privacy === 'restricted')) return 'Sensitive entry';
+  if (!secureView && isProtectedOutsideSecureView(node)) return 'Sensitive entry';
   return node.data.label;
 }
 
 function matchesQuery(node: MindNode, query: string, secureView: boolean): boolean {
   const term = query.trim().toLowerCase();
   if (!term) return true;
-  if (!secureView && (nodePrivacy(node) === 'sensitive' || nodePrivacy(node) === 'restricted')) return false;
+  if (!secureView && isProtectedOutsideSecureView(node)) return false;
   return [displayLabel(node, secureView), node.data.description, node.data.kind, ...node.data.tags]
     .join(' ').toLowerCase().includes(term);
 }
 
 export function isVisibleIn3D(node: MindNode, options: VisibilityOptions = {}): boolean {
-  const privacy = nodePrivacy(node);
-  if (!options.secureView && (privacy === 'sensitive' || privacy === 'restricted')) return false;
+  if (!options.secureView && isProtectedOutsideSecureView(node)) return false;
   if (options.dimension && options.dimension !== 'all' && nodeDimension(node) !== options.dimension) return false;
   if (options.query && !matchesQuery(node, options.query, Boolean(options.secureView))) return false;
   return true;

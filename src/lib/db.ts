@@ -52,5 +52,6 @@ export const STORAGE_KEYS = {
   conversation: 'conversation-v2',
   settings: 'settings-v2',
   narrative: 'narrative-v1',
+  history: 'history-import-v1',
   legacyGraph: 'neural-mind-studio-project-v1',
 } as const;
