@@ -9,6 +9,7 @@ import {
   layout3D, nodePrivacy, type CameraPreset, type Point3,
 } from '../lib/mind3d';
 import type { MindNode } from '../types/mind';
+import RelationshipReviewCard from './RelationshipReviewCard';
 import type { Group as ThreeGroup, Mesh as ThreeMesh } from 'three';
 
 type ThreeRuntime = {
@@ -338,13 +339,7 @@ export default function CognitiveUniverse3D() {
             <div className="connected-heading"><span>Reviewable relationships</span><strong>{selectedRelationships.length}</strong></div>
             <div className="relationship-review-list">
               {selectedRelationships.map((relationship, index) => (
-                <article key={`${relationship.source}-${relationship.destination}-${index}`} className={`relationship-card ${relationship.confirmationStatus}`}>
-                  <div><strong>{relationship.source}</strong> → <strong>{relationship.destination}</strong></div>
-                  <small>{relationship.type} · {relationship.confirmationStatus} · {relationship.signalBearing ? 'signal-bearing' : 'excluded from signal'}</small>
-                  {relationship.explanation && <p>{relationship.explanation}</p>}
-                  {relationship.supportingInformation && <blockquote>“{relationship.supportingInformation}”</blockquote>}
-                  <small>Evidence class: {relationship.evidenceClass}</small>
-                </article>
+                <RelationshipReviewCard key={`${relationship.source}-${relationship.destination}-${index}`} relationship={relationship} />
               ))}
               {!selectedRelationships.length && <p className="muted-note">No relationships recorded for this node yet.</p>}
             </div>

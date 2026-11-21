@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Activity, ArrowDownRight, ArrowLeftRight, ArrowUpRight, Check, Link2,
+  Activity, ArrowDownRight, ArrowLeftRight, Check, Link2,
   Pencil, Save, ShieldAlert, Trash2, Unlink, X,
 } from 'lucide-react';
 import {
@@ -11,7 +11,8 @@ import {
 } from '@shared/domain';
 import { useMindStore } from '../store/mindStore';
 import { useUiStore } from '../store/uiStore';
-import { displayLabel, isSignalEdge } from '../lib/mind3d';
+import { displayLabel, explainRelationship, isSignalEdge } from '../lib/mind3d';
+import RelationshipReviewCard from './RelationshipReviewCard';
 import { effectivePrivacy, privacyPatch, type EffectivePrivacy } from '../utils/privacy';
 import { sourceForNode, useImportStore } from '../store/importStore';
 import {
@@ -327,17 +328,10 @@ function Inspector({ selectedNode, selectedEdge }: InspectorProps) {
       <label className="field-label">Tags (comma separated)</label>
       <input className="field-control" value={draft.tags.join(', ')} onChange={(event) => patch({ tags: event.target.value.split(',').map((tag) => tag.trim()).filter(Boolean) })} />
       <div className="connected-heading"><span>Connected relationships</span><strong>{connected.length}</strong></div>
-      <div className="connected-list">
-        {connected.slice(0, 8).map((edge) => {
-          const otherId = edge.source === selectedNode.id ? edge.target : edge.source;
-          const other = nodes.find((node) => node.id === otherId);
-          const outgoing = edge.source === selectedNode.id;
-          return <div className="connected-row" key={edge.id}>
-            {outgoing ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
-            <span>{other?.data.label ?? 'Unknown'}</span>
-            <small>{edge.data?.customRelation ? customRelations.find((item) => item.id === edge.data?.customRelation)?.label : edge.data?.relation}</small>
-          </div>;
-        })}
+      <div className="relationship-review-list">
+        {connected.slice(0, 8).map((edge) => (
+          <RelationshipReviewCard key={edge.id} relationship={explainRelationship(edge, nodes)} />
+        ))}
         {!connected.length && <div className="muted-note">No connections yet. Drag a handle to another node.</div>}
       </div>
       <div className="inspector-actions">

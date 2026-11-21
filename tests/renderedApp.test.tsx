@@ -262,6 +262,32 @@ describe('rendered personal mind atlas', () => {
     expect(card.textContent).toContain('suggested');
   });
 
+  it('uses the same reviewable relationship card in the Inspector', () => {
+    const a = makeNode('a', 'thought', 'Trigger thought');
+    const b = makeNode('b', 'emotion', 'Result feeling');
+    resetStores(
+      [a, b],
+      [makeEdge('e1', 'a', 'b', {
+        relation: 'may indicate',
+        explanation: 'Keyword overlap only; review before keeping.',
+        evidence: [{ eventId: 'event-1', excerpt: 'exact supporting words', date: '2026-11-20' }],
+        provenance: 'ai-suggested',
+        review: 'suggested',
+      })],
+    );
+    useUiStore.setState({ selectedNodeId: 'a' });
+    render(<Inspector selectedNode={a} selectedEdge={null} />);
+    const card = document.querySelector('.relationship-card') as HTMLElement;
+    expect(card).toBeTruthy();
+    expect(card.textContent).toContain('Trigger thought');
+    expect(card.textContent).toContain('Result feeling');
+    expect(card.textContent).toContain('may indicate');
+    expect(card.textContent).toContain('exact supporting words');
+    expect(card.textContent).toContain('Evidence class: ai-suggested');
+    expect(card.textContent).toContain('suggested');
+    expect(card.textContent).toContain('excluded from signal');
+  });
+
   it('keeps suggested and structural relationships out of signal propagation', () => {
     const nodes = [makeNode('a'), makeNode('b'), makeNode('c')];
     const suggested = makeEdge('s', 'a', 'b', { review: 'suggested' });
