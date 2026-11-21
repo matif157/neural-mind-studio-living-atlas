@@ -49,6 +49,7 @@ export const WORKSPACES = [
   { id: 'neuroscience', label: 'Neuroscience Explorer', short: 'Neuroscience', key: 'H' },
   { id: 'library', label: 'Knowledge Library', short: 'Library', key: 'I' },
   { id: 'settings', label: 'Settings & Data Control', short: 'Settings', key: 'J' },
+  { id: 'narrative', label: 'Narrative Threads', short: 'Threads', key: 'K' },
 ] as const;
 export type WorkspaceId = (typeof WORKSPACES)[number]['id'];
 

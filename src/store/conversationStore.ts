@@ -26,6 +26,42 @@ export interface ProposalRecord {
   payload: ProposalPayload;
 }
 
+export type NarrativeStatus = 'draft' | 'reviewed' | 'rejected';
+export type NarrativeLinkKind = 'same trigger' | 'same body response' | 'same story' | 'same need' | 'repeats over time' | 'contradicts';
+
+export interface NarrativeThread {
+  id: string;
+  title: string;
+  period: string;
+  rawText: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NarrativeSegment {
+  id: string;
+  threadId: string;
+  order: number;
+  title: string;
+  originalText: string;
+  whatHappened: string;
+  feltBody: string;
+  story: string;
+  need: string;
+  action: string;
+  confidence: number;
+  status: NarrativeStatus;
+}
+
+export interface NarrativeLink {
+  id: string;
+  fromId: string;
+  toId: string;
+  kind: NarrativeLinkKind;
+  note: string;
+  createdAt: string;
+}
+
 interface ConversationState {
   conversations: Conversation[];
   activeConversationId: string;
@@ -35,6 +71,9 @@ interface ConversationState {
   settings: ClientSettings;
   exerciseStates: Record<string, ExerciseState>;
   reflections: Reflection[];
+  threads: NarrativeThread[];
+  segments: NarrativeSegment[];
+  links: NarrativeLink[];
   streaming: { active: boolean; text: string; status: string };
   hydrated: boolean;
   newConversation: () => string;
@@ -54,13 +93,40 @@ interface ConversationState {
   updateEventText: (id: string, text: string) => void;
   updateAnalysis: (id: string, patch: Partial<AiAnalysis>) => void;
   setStreaming: (patch: Partial<ConversationState['streaming']>) => void;
-  hydrate: (data: Partial<Pick<ConversationState, 'conversations' | 'activeConversationId' | 'events' | 'analyses' | 'proposals' | 'settings' | 'exerciseStates' | 'reflections'>>) => void;
+  addThread: () => string;
+  updateThread: (threadId: string, patch: Partial<Pick<NarrativeThread, 'title' | 'period' | 'rawText'>>) => void;
+  deleteThread: (threadId: string) => void;
+  splitThread: (threadId: string) => number;
+  addSegment: (threadId: string) => string;
+  updateSegment: (segmentId: string, patch: Partial<NarrativeSegment>) => void;
+  deleteSegment: (segmentId: string) => void;
+  addLink: (link: Omit<NarrativeLink, 'id' | 'createdAt'>) => void;
+  deleteLink: (linkId: string) => void;
+  hydrate: (data: Partial<Pick<ConversationState, 'conversations' | 'activeConversationId' | 'events' | 'analyses' | 'proposals' | 'settings' | 'exerciseStates' | 'reflections' | 'threads' | 'segments' | 'links'>>) => void;
   clearConversationsOnly: () => void;
   clearAll: () => void;
 }
 
 const id = (prefix: string) => `${prefix}-${crypto.randomUUID?.() ?? Math.random().toString(36).slice(2, 10)}`;
 const now = () => new Date().toISOString();
+
+export const NARRATIVE_LINK_KINDS: NarrativeLinkKind[] = [
+  'same trigger', 'same body response', 'same story', 'same need', 'repeats over time', 'contradicts',
+];
+
+function splitNarrativeText(rawText: string): Array<Pick<NarrativeSegment, 'title' | 'originalText'>> {
+  const paragraphs = rawText.split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean);
+  const pieces = paragraphs.length > 1
+    ? paragraphs
+    : rawText.split(/\n+/).map((part) => part.trim()).filter(Boolean);
+  return pieces.map((piece, index) => {
+    const firstLine = piece.split('\n')[0].replace(/^[#>*\-\d.\s]+/, '').trim();
+    const title = firstLine.length > 0 && firstLine.length <= 64
+      ? firstLine
+      : `Part ${index + 1}`;
+    return { title, originalText: piece };
+  });
+}
 
 const defaultSettings = clientSettingsSchema.parse({});
 
@@ -73,6 +139,9 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
   settings: defaultSettings,
   exerciseStates: {},
   reflections: [],
+  threads: [],
+  segments: [],
+  links: [],
   streaming: { active: false, text: '', status: '' },
   hydrated: false,
 
@@ -163,16 +232,95 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
 
   setStreaming: (patch) => set((state) => ({ streaming: { ...state.streaming, ...patch } })),
 
+  addThread: () => {
+    const threadId = id('thread');
+    const timestamp = now();
+    set((state) => ({
+      threads: [{ id: threadId, title: 'Untitled thread', period: '', rawText: '', createdAt: timestamp, updatedAt: timestamp }, ...state.threads],
+    }));
+    return threadId;
+  },
+
+  updateThread: (threadId, patch) => set((state) => ({
+    threads: state.threads.map((thread) => thread.id === threadId ? { ...thread, ...patch, updatedAt: now() } : thread),
+  })),
+
+  deleteThread: (threadId) => set((state) => {
+    const segmentIds = new Set(state.segments.filter((segment) => segment.threadId === threadId).map((segment) => segment.id));
+    return {
+      threads: state.threads.filter((thread) => thread.id !== threadId),
+      segments: state.segments.filter((segment) => segment.threadId !== threadId),
+      links: state.links.filter((link) => !segmentIds.has(link.fromId) && !segmentIds.has(link.toId)),
+    };
+  }),
+
+  splitThread: (threadId) => {
+    const thread = get().threads.find((item) => item.id === threadId);
+    if (!thread) return 0;
+    const pieces = splitNarrativeText(thread.rawText);
+    if (pieces.length === 0) return 0;
+    set((state) => {
+      const remainingSegments = state.segments.filter((segment) => segment.threadId !== threadId);
+      const removedIds = new Set(state.segments.filter((segment) => segment.threadId === threadId).map((segment) => segment.id));
+      return {
+        segments: [
+          ...remainingSegments,
+          ...pieces.map((piece, index) => ({
+            id: id('segment'), threadId, order: index + 1, title: piece.title,
+            originalText: piece.originalText, whatHappened: '', feltBody: '', story: '',
+            need: '', action: '', confidence: 0.5, status: 'draft' as const,
+          })),
+        ],
+        links: state.links.filter((link) => !removedIds.has(link.fromId) && !removedIds.has(link.toId)),
+      };
+    });
+    return pieces.length;
+  },
+
+  addSegment: (threadId) => {
+    const segmentId = id('segment');
+    set((state) => ({
+      segments: [...state.segments, {
+        id: segmentId, threadId,
+        order: state.segments.filter((segment) => segment.threadId === threadId).length + 1,
+        title: 'New segment', originalText: '', whatHappened: '', feltBody: '', story: '',
+        need: '', action: '', confidence: 0.5, status: 'draft',
+      }],
+    }));
+    return segmentId;
+  },
+
+  updateSegment: (segmentId, patch) => set((state) => ({
+    segments: state.segments.map((segment) => segment.id === segmentId ? { ...segment, ...patch } : segment),
+  })),
+
+  deleteSegment: (segmentId) => set((state) => ({
+    segments: state.segments.filter((segment) => segment.id !== segmentId),
+    links: state.links.filter((link) => link.fromId !== segmentId && link.toId !== segmentId),
+  })),
+
+  addLink: (link) => set((state) => {
+    const duplicate = state.links.some((item) =>
+      (item.fromId === link.fromId && item.toId === link.toId)
+      || (item.fromId === link.toId && item.toId === link.fromId));
+    if (duplicate) return state;
+    return { links: [...state.links, { ...link, id: id('link'), createdAt: now() }] };
+  }),
+
+  deleteLink: (linkId) => set((state) => ({ links: state.links.filter((link) => link.id !== linkId) })),
+
   hydrate: (data) => set({ ...data, hydrated: true }),
 
   clearConversationsOnly: () => set({
     conversations: [], activeConversationId: '', events: [], analyses: [], proposals: [],
-    exerciseStates: {}, reflections: [], streaming: { active: false, text: '', status: '' },
+    exerciseStates: {}, reflections: [], threads: [], segments: [], links: [],
+    streaming: { active: false, text: '', status: '' },
   }),
 
   clearAll: () => set({
     conversations: [], activeConversationId: '', events: [], analyses: [], proposals: [],
-    exerciseStates: {}, reflections: [], streaming: { active: false, text: '', status: '' },
+    exerciseStates: {}, reflections: [], threads: [], segments: [], links: [],
+    streaming: { active: false, text: '', status: '' },
     settings: defaultSettings,
   }),
 }));

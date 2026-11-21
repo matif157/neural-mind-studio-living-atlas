@@ -17,13 +17,16 @@ import ConversationWorkspace from './components/conversation/ConversationWorkspa
 import { EmotionObservatory, MemoryAtlas, PatternIntelligence, ThoughtExplorer } from './components/workspaces/InsightWorkspaces';
 import { KnowledgeLibrary, NeuroscienceExplorer, ReflectionStudio } from './components/workspaces/PracticeWorkspaces';
 import SettingsWorkspace from './components/workspaces/SettingsWorkspace';
+import NarrativeThreads from './components/workspaces/NarrativeThreads';
 import { deleteLocal, readLocal, STORAGE_KEYS, writeLocal } from './lib/db';
 import { createProjectFile, downloadProjectFile, migrateProjectFile, validateProjectFile } from './utils/projectFile';
 import { useConversationStore } from './store/conversationStore';
 import { useMindStore } from './store/mindStore';
 import { useUiStore } from './store/uiStore';
 import { iconFor } from './components/iconFor';
-import type { Conversation, ProposalRecord } from './store/conversationStore';
+import type {
+  Conversation, NarrativeLink, NarrativeSegment, NarrativeThread, ProposalRecord,
+} from './store/conversationStore';
 import type { StoredAnalysis } from './lib/patterns';
 import './styles.css';
 
@@ -74,10 +77,11 @@ function App() {
   useEffect(() => {
     let cancelled = false;
     const restore = async () => {
-      const [graphRaw, conversationRaw, settingsRaw] = await Promise.all([
+      const [graphRaw, conversationRaw, settingsRaw, narrativeRaw] = await Promise.all([
         readLocal<unknown>(STORAGE_KEYS.graph),
         readLocal<Record<string, unknown>>(STORAGE_KEYS.conversation),
         readLocal<unknown>(STORAGE_KEYS.settings),
+        readLocal<Record<string, unknown>>(STORAGE_KEYS.narrative),
       ]);
       let legacy: unknown = null;
       try {
@@ -93,39 +97,53 @@ function App() {
       }
       const parsedSettings = settingsRaw ? clientSettingsSchema.safeParse(settingsRaw) : null;
       const safeSettings = parsedSettings?.success ? parsedSettings.data : undefined;
-      if (conversationRaw && typeof conversationRaw === 'object') {
-        const conversationsData = Array.isArray(conversationRaw.conversations)
-          ? (conversationRaw.conversations as Conversation[]).filter((item) => item && typeof item.id === 'string').slice(0, 100)
+      const conversationSource = conversationRaw && typeof conversationRaw === 'object' ? conversationRaw : {};
+      const narrativeSource = narrativeRaw && typeof narrativeRaw === 'object' ? narrativeRaw : conversationSource;
+      if (conversationRaw || narrativeRaw) {
+        const conversationsData = Array.isArray(conversationSource.conversations)
+          ? (conversationSource.conversations as Conversation[]).filter((item) => item && typeof item.id === 'string').slice(0, 100)
           : [];
-        const eventsData = Array.isArray(conversationRaw.events)
-          ? conversationRaw.events.map((item) => conversationEventSchema.safeParse(item)).flatMap((result) => result.success ? [result.data] : []).slice(0, 20000)
+        const eventsData = Array.isArray(conversationSource.events)
+          ? conversationSource.events.map((item) => conversationEventSchema.safeParse(item)).flatMap((result) => result.success ? [result.data] : []).slice(0, 20000)
           : [];
-        const analysesData = Array.isArray(conversationRaw.analyses)
-          ? (conversationRaw.analyses as StoredAnalysis[]).flatMap((item) => {
+        const analysesData = Array.isArray(conversationSource.analyses)
+          ? (conversationSource.analyses as StoredAnalysis[]).flatMap((item) => {
             const parsed = item && aiAnalysisSchema.safeParse(item.analysis);
             return parsed?.success ? [{ ...item, analysis: parsed.data }] : [];
           }).slice(0, 5000)
           : [];
-        const proposalsData = Array.isArray(conversationRaw.proposals)
-          ? (conversationRaw.proposals as ProposalRecord[]).filter((item) => item && typeof item.id === 'string' && item.payload && typeof item.payload === 'object').slice(0, 10000)
+        const proposalsData = Array.isArray(conversationSource.proposals)
+          ? (conversationSource.proposals as ProposalRecord[]).filter((item) => item && typeof item.id === 'string' && item.payload && typeof item.payload === 'object').slice(0, 10000)
           : [];
-        const exercisesData = conversationRaw.exerciseStates && typeof conversationRaw.exerciseStates === 'object'
-          ? Object.fromEntries(Object.entries(conversationRaw.exerciseStates).flatMap(([key, value]) => {
+        const exercisesData = conversationSource.exerciseStates && typeof conversationSource.exerciseStates === 'object'
+          ? Object.fromEntries(Object.entries(conversationSource.exerciseStates).flatMap(([key, value]) => {
             const parsed = exerciseStateSchema.safeParse(value);
             return parsed.success ? [[key, parsed.data]] : [];
           }))
           : {};
-        const reflectionsData = Array.isArray(conversationRaw.reflections)
-          ? conversationRaw.reflections.map((item) => reflectionSchema.safeParse(item)).flatMap((result) => result.success ? [result.data] : []).slice(0, 5000)
+        const reflectionsData = Array.isArray(conversationSource.reflections)
+          ? conversationSource.reflections.map((item) => reflectionSchema.safeParse(item)).flatMap((result) => result.success ? [result.data] : []).slice(0, 5000)
+          : [];
+        const threadsData = Array.isArray(narrativeSource.threads)
+          ? (narrativeSource.threads as NarrativeThread[]).filter((item) => item && typeof item.id === 'string' && typeof item.title === 'string').slice(0, 500)
+          : [];
+        const segmentsData = Array.isArray(narrativeSource.segments)
+          ? (narrativeSource.segments as NarrativeSegment[]).filter((item) => item && typeof item.id === 'string' && typeof item.threadId === 'string' && typeof item.title === 'string').slice(0, 20000)
+          : [];
+        const linksData = Array.isArray(narrativeSource.links)
+          ? (narrativeSource.links as NarrativeLink[]).filter((item) => item && typeof item.id === 'string' && typeof item.fromId === 'string' && typeof item.toId === 'string').slice(0, 20000)
           : [];
         hydrateConversation({
           conversations: conversationsData,
-          activeConversationId: typeof conversationRaw.activeConversationId === 'string' ? conversationRaw.activeConversationId : (conversationsData[0]?.id ?? ''),
+          activeConversationId: typeof conversationSource.activeConversationId === 'string' ? conversationSource.activeConversationId : (conversationsData[0]?.id ?? ''),
           events: eventsData,
           analyses: analysesData,
           proposals: proposalsData,
           exerciseStates: exercisesData,
           reflections: reflectionsData,
+          threads: threadsData,
+          segments: segmentsData,
+          links: linksData,
           settings: safeSettings,
         });
       } else if (safeSettings) {
@@ -162,6 +180,9 @@ function App() {
       setSaved(false);
       conversationTimer = window.setTimeout(() => {
         void writeLocal(STORAGE_KEYS.settings, state.settings);
+        void writeLocal(STORAGE_KEYS.narrative, {
+          threads: state.threads, segments: state.segments, links: state.links,
+        });
         if (state.settings.longTermMemory) {
           void writeLocal(STORAGE_KEYS.conversation, {
             conversations: state.conversations, activeConversationId: state.activeConversationId,
@@ -199,6 +220,9 @@ function App() {
         const index = event.key === '0' ? 9 : Number(event.key) - 1;
         const next = WORKSPACES[index];
         if (next) { event.preventDefault(); setWorkspace(next.id); }
+      } else if (event.altKey && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setWorkspace('narrative');
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -233,6 +257,7 @@ function App() {
       case 'neuroscience': return <NeuroscienceExplorer notify={notify} />;
       case 'library': return <KnowledgeLibrary notify={notify} />;
       case 'settings': return <SettingsWorkspace notify={notify} />;
+      case 'narrative': return <NarrativeThreads notify={notify} />;
       default: return null;
     }
   };
@@ -246,7 +271,7 @@ function App() {
         </div>
         <nav className="workspace-nav" aria-label="Workspaces">
           {WORKSPACES.map((item) => {
-            const Icon = iconFor(item.id === 'atlas' ? 'circle' : item.id === 'conversation' ? 'users' : item.id === 'emotions' ? 'heart' : item.id === 'thoughts' ? 'lightbulb' : item.id === 'memories' ? 'brain' : item.id === 'patterns' ? 'repeat' : item.id === 'reflection' ? 'check' : item.id === 'neuroscience' ? 'pulse' : item.id === 'library' ? 'book' : 'shield');
+            const Icon = iconFor(item.id === 'atlas' ? 'circle' : item.id === 'conversation' ? 'users' : item.id === 'emotions' ? 'heart' : item.id === 'thoughts' ? 'lightbulb' : item.id === 'memories' ? 'brain' : item.id === 'patterns' ? 'repeat' : item.id === 'reflection' ? 'check' : item.id === 'neuroscience' ? 'pulse' : item.id === 'library' ? 'book' : item.id === 'narrative' ? 'compass' : 'shield');
             return <button key={item.id} className={`workspace-tab ${workspace === item.id ? 'active' : ''}`} onClick={() => setWorkspace(item.id)} aria-current={workspace === item.id ? 'page' : undefined} title={`${item.key} · ${item.label}`}><Icon size={14} /><span>{item.short}</span></button>;
           })}
         </nav>
@@ -312,7 +337,7 @@ function App() {
 
       <footer className="app-footer">
         <div className="footer-left"><span className="footer-dot" /> LOCAL-FIRST WORKSPACE <span className="footer-divider">/</span> {conversations.length} conversation(s) <span className="footer-divider">/</span> YOUR DATA STAYS ON THIS DEVICE</div>
-        <div className="footer-right"><span><Command size={12} /> Z undo</span><span><Command size={12} /> C copy</span><span><Command size={12} /> V paste</span><span>ALT + 1–0 workspaces</span></div>
+        <div className="footer-right"><span><Command size={12} /> Z undo</span><span><Command size={12} /> C copy</span><span><Command size={12} /> V paste</span><span>ALT + 1–0 / K workspaces</span></div>
       </footer>
 
       {toast && <div className="toast-message" role="status"><Check size={15} /> {toast}</div>}
@@ -338,6 +363,7 @@ function App() {
               <div><kbd>⌘/Ctrl D</kbd><span>Duplicate selection</span></div>
               <div><kbd>Shift + drag</kbd><span>Multi-select</span></div>
               <div><kbd>Alt + 1–0</kbd><span>Switch workspace</span></div>
+              <div><kbd>Alt + K</kbd><span>Narrative Threads</span></div>
               <div><kbd>?</kbd><span>Show this help</span></div>
               <div><kbd>Esc</kbd><span>Clear focus / menus</span></div>
             </div>

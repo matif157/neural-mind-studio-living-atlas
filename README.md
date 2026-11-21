@@ -34,6 +34,7 @@ npm run dev:web
 | H | **Neuroscience Explorer** | Neuron anatomy explainer and knowledge domains; explicitly separates biological structures from conceptual nodes. |
 | I | **Knowledge Library** | Searchable taxonomy of clinical, psychological, therapeutic and cognitive fields with scope and limitations. |
 | J | **Settings & Data Control** | Consent, provider/model choice, session token, privacy toggles, theme, reduced motion, exports and data deletion. |
+| K | **Narrative Threads** | Separate long talks into segments, preserve original wording, record self-rated interpretations, connect repeated triggers/needs across time, and export the result locally. |
 
 ## AI providers
 
@@ -101,7 +102,7 @@ If text suggests immediate danger, self-harm or harm to others, the workspace sh
 shared/      Domain vocabulary, Zod schemas, taxonomy and strict AI JSON contract
 server/      Express API, auth, rate limits, provider adapters, safety/validation pipeline
 src/
-  components/  Canvas, nodes, edges, palette, inspector, conversation and 9 workspaces
+  components/  Canvas, nodes, edges, palette, inspector, conversation and 10 focused workspaces
   lib/         API client, SSE parser, IndexedDB, longitudinal pattern utilities
   store/       Zustand graph, conversation and UI state
   data/        Starter graph and guided examples
@@ -109,6 +110,6 @@ tests/       API, project file and pattern utility tests
 docs/        Scientific scope and verification report
 ```
 
-Keyboard shortcuts: `⌘/Ctrl Z` undo, `⌘/Ctrl ⇧ Z` redo, `⌘/Ctrl C/X/V` copy/cut/paste, `⌘/Ctrl D` duplicate, `Alt + 1–0` switch workspace, `?` show help, `Esc` clear focus.
+Keyboard shortcuts: `⌘/Ctrl Z` undo, `⌘/Ctrl ⇧ Z` redo, `⌘/Ctrl C/X/V` copy/cut/paste, `⌘/Ctrl D` duplicate, `Alt + 1–0` switch workspace, `Alt + K` open Narrative Threads, `?` show help, `Esc` clear focus.
 
 See `docs/SCIENTIFIC_MODEL.md` for conceptual scope and `docs/TEST_REPORT.md` for verification results.

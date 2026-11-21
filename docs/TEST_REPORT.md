@@ -51,7 +51,7 @@ npm run dev
 
 The web app was opened at `http://localhost:5173`, with Vite proxying `/api` to the Express server on `http://localhost:8787`. Verification used the in-app browser.
 
-### Ten-workspace smoke test
+### Eleven-workspace smoke test
 
 Each workspace was opened and checked for its expected heading, primary cards and interactive controls. All ten rendered successfully:
 
@@ -67,6 +67,7 @@ Each workspace was opened and checked for its expected heading, primary cards an
 | H | Neuroscience Explorer | Passed — anatomy explainer and caveat rendered |
 | I | Knowledge Library | Passed — taxonomy search and domain cards rendered |
 | J | Settings & Data Control | Passed — consent, provider, privacy, theme and data controls rendered |
+| K | Narrative Threads | Passed — thread rail, source/segment editor and connection panel rendered |
 
 No client console errors were observed during the workspace smoke test.
 
@@ -83,6 +84,10 @@ The end-to-end review path was exercised as follows:
 7. Confirmed the app switched to the Atlas workspace and added the accepted items as **draft** nodes, leaving them available for inspection, editing, confirmation or rejection.
 
 Result: **pass**. The original user wording remained stored independently, and no graph mutation occurred until explicit acceptance.
+
+### Narrative Threads layout check
+
+The Narrative Threads workspace was opened and exercised with generic local-only test text. The three-pane layout rendered correctly: thread rail on the left, source/segment editor in the centre, and echoes/connections/pattern ledger on the right. Splitting a source talk produced separate segment chips; segment fields, confidence, status, connection suggestions and local JSON export were available. The responsive stack layout was verified at an 816 px viewport. No console errors were observed. No personal narrative was written into the repository.
 
 ## Accessibility and best-practice audit
 
@@ -116,4 +121,4 @@ The final manual pass confirmed the following user-visible boundaries:
 
 ## Conclusion
 
-The implementation meets the release criteria for the Living Mind Atlas: all ten workspaces are functional, the automated suite passes, the production build succeeds, the offline AI review path works end to end, and the documented safety and privacy boundaries are enforced in the UI and server pipeline. Remaining Lighthouse findings are tracking items rather than release blockers.
+The implementation meets the release criteria for the Living Mind Atlas: all eleven workspaces are functional, the automated suite passes, the production build succeeds, the offline AI review path works end to end, and the documented safety and privacy boundaries are enforced in the UI and server pipeline. Remaining Lighthouse findings are tracking items rather than release blockers.
