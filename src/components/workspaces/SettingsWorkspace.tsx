@@ -9,6 +9,7 @@ import { useMindStore } from '../../store/mindStore';
 import { fetchHealth, fetchProviders, getApiToken, setApiToken, testConnection } from '../../lib/api';
 import { clearAllLocalData, STORAGE_KEYS } from '../../lib/db';
 import { createProjectFile, downloadProjectFile, migrateProjectFile, validateProjectFile } from '../../utils/projectFile';
+import HistoryImportWizard from '../import/HistoryImportWizard';
 
 interface Props { notify: (message: string) => void }
 
@@ -128,6 +129,8 @@ export default function SettingsWorkspace({ notify }: Props) {
           <div className="storage-note"><KeyRound size={13} /> Storage keys: {Object.values(STORAGE_KEYS).join(', ')}</div>
         </section>
       </div>
+
+      <HistoryImportWizard notify={notify} />
     </div>
   );
 }

@@ -11,14 +11,19 @@ import {
   reflectionSchema,
 } from '@shared/schemas';
 import MindCanvas from './components/MindCanvas';
+import Mind3DWorkspace from './components/Mind3DWorkspace';
 import Toolbar from './components/Toolbar';
 import AnatomyModal from './components/AnatomyModal';
 import ConversationWorkspace from './components/conversation/ConversationWorkspace';
 import { EmotionObservatory, MemoryAtlas, PatternIntelligence, ThoughtExplorer } from './components/workspaces/InsightWorkspaces';
 import { KnowledgeLibrary, NeuroscienceExplorer, ReflectionStudio } from './components/workspaces/PracticeWorkspaces';
+import {
+  BehaviouralSystems, BodyInteroception, HistoryAnalytics, PersonalGrowth, RelationshipDynamics,
+} from './components/workspaces/SystemWorkspaces';
 import SettingsWorkspace from './components/workspaces/SettingsWorkspace';
 import NarrativeThreads from './components/workspaces/NarrativeThreads';
 import { deleteLocal, readLocal, STORAGE_KEYS, writeLocal } from './lib/db';
+import { hydrateImportStore } from './store/importStore';
 import { createProjectFile, downloadProjectFile, migrateProjectFile, validateProjectFile } from './utils/projectFile';
 import { useConversationStore } from './store/conversationStore';
 import { useMindStore } from './store/mindStore';
@@ -154,6 +159,8 @@ function App() {
       if (!cancelled) setReady(true);
     };
     void restore();
+    // Imported personal history is restored only when long-term storage is enabled.
+    void hydrateImportStore();
     return () => { cancelled = true; };
   }, [hydrateConversation, loadProject]);
 
@@ -248,14 +255,20 @@ function App() {
   const renderWorkspace = () => {
     switch (workspace) {
       case 'atlas': return <MindCanvas onFitRef={setFitCallback} />;
+      case 'universe': return <Mind3DWorkspace onOpen2D={() => setWorkspace('atlas')} onOpenCompanion={() => setWorkspace('conversation')} />;
       case 'conversation': return <ConversationWorkspace notify={notify} />;
       case 'emotions': return <EmotionObservatory notify={notify} />;
       case 'thoughts': return <ThoughtExplorer notify={notify} />;
       case 'memories': return <MemoryAtlas notify={notify} />;
       case 'patterns': return <PatternIntelligence notify={notify} />;
+      case 'relationships': return <RelationshipDynamics notify={notify} />;
+      case 'behaviour': return <BehaviouralSystems notify={notify} />;
+      case 'body': return <BodyInteroception notify={notify} />;
       case 'reflection': return <ReflectionStudio notify={notify} />;
+      case 'growth': return <PersonalGrowth notify={notify} />;
       case 'neuroscience': return <NeuroscienceExplorer notify={notify} />;
       case 'library': return <KnowledgeLibrary notify={notify} />;
+      case 'analytics': return <HistoryAnalytics notify={notify} />;
       case 'settings': return <SettingsWorkspace notify={notify} />;
       case 'narrative': return <NarrativeThreads notify={notify} />;
       default: return null;
@@ -271,7 +284,7 @@ function App() {
         </div>
         <nav className="workspace-nav" aria-label="Workspaces">
           {WORKSPACES.map((item) => {
-            const Icon = iconFor(item.id === 'atlas' ? 'circle' : item.id === 'conversation' ? 'users' : item.id === 'emotions' ? 'heart' : item.id === 'thoughts' ? 'lightbulb' : item.id === 'memories' ? 'brain' : item.id === 'patterns' ? 'repeat' : item.id === 'reflection' ? 'check' : item.id === 'neuroscience' ? 'pulse' : item.id === 'library' ? 'book' : item.id === 'narrative' ? 'compass' : 'shield');
+            const Icon = iconFor(item.icon);
             return <button key={item.id} className={`workspace-tab ${workspace === item.id ? 'active' : ''}`} onClick={() => setWorkspace(item.id)} aria-current={workspace === item.id ? 'page' : undefined} title={`${item.key} · ${item.label}`}><Icon size={14} /><span>{item.short}</span></button>;
           })}
         </nav>

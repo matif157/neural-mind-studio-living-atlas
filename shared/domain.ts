@@ -12,9 +12,18 @@ export const SCHEMA_VERSION = 2;
 export const MIND_NODE_KINDS = [
   'root', 'emotion', 'thought', 'pattern', 'memory', 'belief', 'identity', 'need',
   'behavior', 'context', 'body', 'goal', 'value', 'coping', 'social', 'situation',
-  'exercise', 'knowledge',
+  'exercise', 'knowledge', 'strength', 'reflection', 'conversation', 'safety',
 ] as const;
 export type MindNodeKind = (typeof MIND_NODE_KINDS)[number];
+
+/**
+ * Privacy classification for a concept. `standard` content may appear in ordinary views.
+ * `private` and `sensitive` content is masked until the user explicitly reveals it for a session.
+ * `restricted` content never enters the standard 2D/3D atlas at all.
+ * Visual masking is not encryption — it is a shoulder-surfing control, not a cryptographic one.
+ */
+export const SENSITIVITY_LEVELS = ['standard', 'private', 'sensitive', 'restricted'] as const;
+export type SensitivityLevel = (typeof SENSITIVITY_LEVELS)[number];
 
 export const MIND_RELATIONS = [
   'activates', 'intensifies', 'soothes', 'arises from', 'recalls', 'reinforces',
@@ -39,17 +48,23 @@ export const CERTAINTIES = ['directly-stated', 'possible', 'uncertain'] as const
 export type Certainty = (typeof CERTAINTIES)[number];
 
 export const WORKSPACES = [
-  { id: 'atlas', label: 'Living Mind Map', short: 'Atlas', key: 'A' },
-  { id: 'conversation', label: 'AI Conversation', short: 'Conversation', key: 'B' },
-  { id: 'emotions', label: 'Emotional Observatory', short: 'Emotions', key: 'C' },
-  { id: 'thoughts', label: 'Thought Explorer', short: 'Thoughts', key: 'D' },
-  { id: 'memories', label: 'Memory Atlas', short: 'Memories', key: 'E' },
-  { id: 'patterns', label: 'Pattern Intelligence', short: 'Patterns', key: 'F' },
-  { id: 'reflection', label: 'Reflection Studio', short: 'Reflection', key: 'G' },
-  { id: 'neuroscience', label: 'Neuroscience Explorer', short: 'Neuroscience', key: 'H' },
-  { id: 'library', label: 'Knowledge Library', short: 'Library', key: 'I' },
-  { id: 'settings', label: 'Settings & Data Control', short: 'Settings', key: 'J' },
-  { id: 'narrative', label: 'Narrative Threads', short: 'Threads', key: 'K' },
+  { id: 'atlas', label: 'Mind Atlas', short: 'Atlas', key: 'A', icon: 'circle' },
+  { id: 'universe', label: '3D Cognitive Universe', short: '3D Mind', key: 'B', icon: 'orbit' },
+  { id: 'conversation', label: 'Conversation Intelligence', short: 'Conversation', key: 'C', icon: 'users' },
+  { id: 'emotions', label: 'Emotion Observatory', short: 'Emotions', key: 'D', icon: 'heart' },
+  { id: 'thoughts', label: 'Thought Explorer', short: 'Thoughts', key: 'E', icon: 'lightbulb' },
+  { id: 'patterns', label: 'Cognitive Pattern Lab', short: 'Patterns', key: 'F', icon: 'repeat' },
+  { id: 'memories', label: 'Memory Atlas', short: 'Memories', key: 'G', icon: 'brain' },
+  { id: 'relationships', label: 'Relationship Dynamics', short: 'Relations', key: 'H', icon: 'users' },
+  { id: 'behaviour', label: 'Behavioural Systems', short: 'Behaviour', key: 'I', icon: 'arrow' },
+  { id: 'body', label: 'Body & Interoception', short: 'Body', key: 'J', icon: 'pulse' },
+  { id: 'reflection', label: 'Reflection Studio', short: 'Reflection', key: 'K', icon: 'check' },
+  { id: 'growth', label: 'Personal Growth', short: 'Growth', key: 'L', icon: 'target' },
+  { id: 'neuroscience', label: 'Neuroscience Explorer', short: 'Neuroscience', key: 'M', icon: 'pulse' },
+  { id: 'library', label: 'Evidence Library', short: 'Evidence', key: 'N', icon: 'book' },
+  { id: 'analytics', label: 'History & Analytics', short: 'Analytics', key: 'O', icon: 'grid' },
+  { id: 'narrative', label: 'Narrative Threads', short: 'Threads', key: 'P', icon: 'compass' },
+  { id: 'settings', label: 'Data & Privacy', short: 'Privacy', key: 'Q', icon: 'shield' },
 ] as const;
 export type WorkspaceId = (typeof WORKSPACES)[number]['id'];
 
@@ -61,6 +76,7 @@ export const GRAPH_VIEWS = [
   { id: 'memory', label: 'Memory View', kinds: ['memory', 'context', 'situation'] as MindNodeKind[] },
   { id: 'behavior', label: 'Behaviour View', kinds: ['behavior', 'body', 'social', 'need'] as MindNodeKind[] },
   { id: 'timeline', label: 'Timeline View', kinds: ['emotion', 'thought', 'memory', 'behavior'] as MindNodeKind[] },
+  { id: 'strengths', label: 'Strengths View', kinds: ['strength', 'value', 'goal', 'coping'] as MindNodeKind[] },
   { id: 'neural', label: 'Neuronal Anatomy', kinds: ['knowledge'] as MindNodeKind[] },
 ] as const;
 export type GraphViewId = (typeof GRAPH_VIEWS)[number]['id'];
@@ -93,6 +109,10 @@ export const NODE_META: Record<MindNodeKind, NodeMeta> = {
   situation: { label: 'Situation', color: '#a8b6c8', tint: 'rgba(168,182,200,.15)', icon: 'map', definition: 'A specific event or scene in which an experience occurred.', branch: 'Context & Situation' },
   exercise: { label: 'Exercise', color: '#9fe0b5', tint: 'rgba(159,224,181,.15)', icon: 'check', definition: 'A structured reflective activity with completion state and user response.', branch: 'Coping & Reflection' },
   knowledge: { label: 'Knowledge Domain', color: '#b6c9e8', tint: 'rgba(182,201,232,.15)', icon: 'book', definition: 'An educational lens such as cognitive psychology or neuroscience with explicit limitations.', branch: 'Knowledge Library' },
+  strength: { label: 'Strength & Resource', color: '#4fd6a8', tint: 'rgba(79,214,168,.15)', icon: 'shield', definition: 'A capability, supportive relationship, value or resource the user identifies. Protective factors are first-class content.', branch: 'Strengths & Protective Factors' },
+  reflection: { label: 'Reflection', color: '#7fe3d0', tint: 'rgba(127,227,208,.15)', icon: 'check', definition: 'A written reflection or completed exercise response, linked to the concepts it concerns.', branch: 'Coping & Reflection' },
+  conversation: { label: 'Conversation', color: '#9db9e6', tint: 'rgba(157,185,230,.15)', icon: 'users', definition: 'A conversation record the user chose to analyse. Exact wording and message IDs are preserved.', branch: 'Conversation Records' },
+  safety: { label: 'Safety & Support', color: '#ffb27a', tint: 'rgba(255,178,122,.15)', icon: 'shield', definition: 'A user-controlled safety resource or plan entry. Never displayed as a risk score or prediction.', branch: 'Safety & Support' },
 };
 
 export const PRIMARY_BRANCHES: Array<{ id: string; label: string; kinds: MindNodeKind[]; color: string }> = [
@@ -104,10 +124,12 @@ export const PRIMARY_BRANCHES: Array<{ id: string; label: string; kinds: MindNod
   { id: 'identity', label: 'Identity & Self-Concept', kinds: ['identity'], color: '#c7a9ff' },
   { id: 'needs', label: 'Needs & Motivation', kinds: ['need', 'goal'], color: '#e8c26a' },
   { id: 'behaviour', label: 'Behaviour & Responses', kinds: ['behavior'], color: '#59d3c2' },
-  { id: 'social', label: 'Social & Relationship Network', kinds: ['social'], color: '#e0a2c0' },
+  { id: 'social', label: 'Social & Relationship Network', kinds: ['social', 'conversation'], color: '#e0a2c0' },
   { id: 'body', label: 'Physical & Body-Related Experiences', kinds: ['body'], color: '#f18db3' },
   { id: 'development', label: 'Goals & Personal Development', kinds: ['goal'], color: '#7fd6a0' },
-  { id: 'coping', label: 'Coping & Reflection Strategies', kinds: ['coping', 'exercise'], color: '#6fd0c0' },
+  { id: 'strengths', label: 'Strengths & Protective Factors', kinds: ['strength'], color: '#4fd6a8' },
+  { id: 'coping', label: 'Coping & Reflection Strategies', kinds: ['coping', 'exercise', 'reflection'], color: '#6fd0c0' },
+  { id: 'safety', label: 'Safety & Support', kinds: ['safety'], color: '#ffb27a' },
 ];
 
 export const EMOTION_COLORS: Array<{ aliases: string[]; color: string }> = [

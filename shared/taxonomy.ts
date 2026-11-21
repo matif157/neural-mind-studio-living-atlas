@@ -198,12 +198,31 @@ export const EXERCISES: z.input<typeof import('./schemas').exerciseSchema>[] = [
   { id: 'metacognition', title: 'Metacognitive check', purpose: 'Notice how you are thinking about a situation.', instructions: ['Name the current thought.', 'Notice the certainty you assign to it.', 'Ask what could change your mind.'], durationMinutes: 5, questions: ['How sure am I, and why?'], relatedKinds: ['thought', 'pattern'] },
 ];
 
+export const BODY_SENSATIONS: string[] = [
+  'Muscle tension', 'Chest tightness', 'Racing heartbeat', 'Shortness of breath', 'Shallow breathing',
+  'Stomach churning', 'Nausea', 'Head pressure', 'Jaw clenching', 'Fatigue', 'Restlessness',
+  'Numbness', 'Tingling', 'Temperature change', 'Dizziness', 'Detached or unreal feeling',
+  'Changes in energy', 'Difficulty sleeping',
+];
+
+export const RELATIONSHIP_CONTEXTS: string[] = [
+  'Family relationship', 'Friendship', 'Romantic relationship', 'Marriage consideration',
+  'Workplace relationship', 'Authority figure', 'Peer group', 'Trusted adult',
+  'Social rejection experience', 'Conflict and repair', 'Boundary setting', 'Separation or loss',
+  'Caregiving relationship', 'Community belonging',
+];
+
 export const NEURON_ANATOMY = [
   { id: 'dendrite', label: 'Dendrites', description: 'Branch-like structures that receive signals from other neurons. They are biological structures, not graph edges.' },
   { id: 'soma', label: 'Soma', description: 'The cell body that maintains the neuron and integrates incoming signals.' },
+  { id: 'nucleus', label: 'Nucleus', description: 'The structure inside the soma that contains genetic material and regulates the cell. It is not a "self" or a store of memories.' },
   { id: 'axon', label: 'Axon', description: 'A projection that carries signals away from the cell body.' },
-  { id: 'myelin', label: 'Myelin', description: 'An insulating layer that can increase the speed of signal propagation in some axons.' },
-  { id: 'synapse', label: 'Synapse', description: 'A junction where chemical or electrical signals pass between neurons.' },
+  { id: 'myelin', label: 'Myelin', description: 'An insulating layer that can increase the speed of signal propagation in some axons. Not all neurons are myelinated.' },
+  { id: 'nodes-of-ranvier', label: 'Nodes of Ranvier', description: 'Small gaps in the myelin sheath where the signal can be regenerated, contributing to faster conduction.' },
+  { id: 'terminals', label: 'Axon terminals', description: 'Endings where the axon contacts the next cell and releases chemical messengers.' },
+  { id: 'vesicles', label: 'Synaptic vesicles', description: 'Small packages inside the terminal that hold neurotransmitters before release.' },
+  { id: 'synapse', label: 'Synapse', description: 'A junction where chemical or electrical signals pass between neurons. The gap between cells is called the synaptic cleft.' },
+  { id: 'receptors', label: 'Postsynaptic receptors', description: 'Proteins on the receiving cell that bind neurotransmitters and can start a new signal.' },
   { id: 'communication', label: 'Synaptic communication', description: 'Neurotransmitters cross the synaptic cleft and bind to receptors; meaning and emotion arise from distributed systems, not a single synapse.' },
 ];
 

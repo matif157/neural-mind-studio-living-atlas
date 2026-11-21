@@ -20,6 +20,7 @@ const node = (
     label, kind, description, innerVoice, balancedVoice, intensity, valence, tags,
     createdAt: 'seed', updatedAt: 'seed', isCore: false, provenance: 'seed', status: 'active',
     confidence: null, evidence: [], collapsed: false, locked: false, isGroup: false,
+    sensitivity: 'standard', spatial: null,
   },
 });
 

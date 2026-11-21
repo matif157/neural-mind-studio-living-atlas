@@ -4,11 +4,12 @@ import {
   Pencil, Save, ShieldAlert, Trash2, Unlink, X,
 } from 'lucide-react';
 import {
-  MIND_RELATIONS, NODE_STATUSES, PROVENANCE_LABELS, VALENCES,
-  type MindRelation, type Provenance,
+  MIND_RELATIONS, NODE_STATUSES, PROVENANCE_LABELS, SENSITIVITY_LEVELS, VALENCES,
+  type MindRelation, type Provenance, type SensitivityLevel,
 } from '@shared/domain';
 import { useMindStore } from '../store/mindStore';
 import { useUiStore } from '../store/uiStore';
+import { sourceForNode, useImportStore } from '../store/importStore';
 import {
   getMindNodeColor, NODE_META, type MindEdge, type MindNode,
   type MindNodeData, type MindNodeKind, type ThoughtValence,
@@ -30,6 +31,7 @@ function Inspector({ selectedNode, selectedEdge }: InspectorProps) {
   const correctNode = useMindStore((state) => state.correctNode);
   const rejectNode = useMindStore((state) => state.rejectNode);
   const setSelectedNode = useUiStore((state) => state.setSelectedNode);
+  const importCandidates = useImportStore((state) => state.candidates);
   const [draft, setDraft] = useState<MindNodeData | null>(null);
   const [edgeDraft, setEdgeDraft] = useState<{
     relation: MindRelation; customRelation: string; weight: number; note: string;
@@ -55,6 +57,12 @@ function Inspector({ selectedNode, selectedEdge }: InspectorProps) {
   const connected = useMemo(() => selectedNode
     ? edges.filter((edge) => edge.source === selectedNode.id || edge.target === selectedNode.id)
     : [], [edges, selectedNode]);
+
+  const source = useMemo(
+    () => (selectedNode ? sourceForNode(selectedNode.id) : null),
+    // importCandidates is a dependency so the trail refreshes after an approval.
+    [selectedNode?.id, importCandidates],
+  );
 
   if (selectedEdge && edgeDraft) {
     const source = nodes.find((node) => node.id === selectedEdge.source);
@@ -191,6 +199,23 @@ function Inspector({ selectedNode, selectedEdge }: InspectorProps) {
         </div>
       </div>
       {draft.confidence !== null && <p className="confidence-note">Interpretation confidence: {Math.round(draft.confidence * 100)}% (not a clinical probability)</p>}
+      <label className="field-label">Privacy level</label>
+      <select className="field-control" value={draft.sensitivity} onChange={(event) => patch({ sensitivity: event.target.value as SensitivityLevel })}>
+        {SENSITIVITY_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}
+      </select>
+      <p className="muted-note">Private and sensitive concepts are masked until revealed for a session. Restricted concepts never appear in standard 2D/3D views.</p>
+      {source && (
+        <div className="evidence-block">
+          <div className="connected-heading"><span>Source passage</span><strong>{source.document.title}</strong></div>
+          <div className="evidence-row">
+            <span>{source.passage.chronology.label ?? 'date unknown'}</span>
+            <p>“{source.passage.originalText.slice(0, 700)}”</p>
+          </div>
+          <small className="muted-note">
+            Offsets {source.passage.startOffset}–{source.passage.endOffset} · {source.document.format.toUpperCase()} · candidate marked {source.candidate.certainty}
+          </small>
+        </div>
+      )}
       {draft.evidence.length > 0 && (
         <div className="evidence-block">
           <div className="connected-heading"><span>Supporting conversation evidence</span><strong>{draft.evidence.length}</strong></div>

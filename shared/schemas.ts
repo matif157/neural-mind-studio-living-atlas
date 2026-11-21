@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import {
   AI_PROVIDERS, CERTAINTIES, MIND_NODE_KINDS, MIND_RELATIONS,
-  NODE_STATUSES, PROVENANCE_LABELS, VALENCES,
+  NODE_STATUSES, PROVENANCE_LABELS, SENSITIVITY_LEVELS, VALENCES,
 } from './domain';
 
 /** Versioned, portable graph format. New fields are optional so v1 projects can be migrated. */
@@ -40,6 +40,14 @@ export const mindNodeDataSchema = z.object({
   collapsed: z.boolean().default(false),
   locked: z.boolean().default(false),
   customKind: z.string().max(80).optional(),
+  /** Privacy classification. Missing values fall back to the kind-based default in the 3D layer. */
+  sensitivity: z.enum(SENSITIVITY_LEVELS).default('standard'),
+  /** Optional independent 3D presentation position. Never replaces the 2D graph layout. */
+  spatial: z.object({
+    x: z.number().finite(),
+    y: z.number().finite(),
+    z: z.number().finite(),
+  }).nullable().default(null),
 });
 
 export const mindNodeSchema = z.object({

@@ -38,6 +38,7 @@ interface MindState {
   clipboard: ClipboardData;
   activeScenario: string | null;
   simulationRunning: boolean;
+  sensitiveContentVisible: boolean;
   customCategories: CustomCategory[];
   customRelations: CustomRelation[];
   setNodes: (nodes: MindNode[]) => void;
@@ -77,6 +78,8 @@ interface MindState {
   loadProject: (file: ProjectFile) => void;
   setActiveScenario: (id: string | null) => void;
   setSimulationRunning: (running: boolean) => void;
+  setSensitiveContentVisible: (visible: boolean) => void;
+  setNodeSpatial: (id: string, position: { x: number; y: number; z: number } | null) => void;
   resetToStarter: () => void;
   clearChangeLog: () => void;
 }
@@ -105,6 +108,9 @@ const blankData = (kind: MindNodeKind, label?: string, patch: Partial<MindNodeDa
   collapsed: false,
   locked: false,
   isGroup: false,
+  // Personal thoughts are private until the user chooses otherwise. Masking is not encryption.
+  sensitivity: kind === 'thought' ? 'private' : 'standard',
+  spatial: null,
   ...patch,
 });
 
@@ -131,6 +137,7 @@ export const useMindStore = create<MindState>((set, get) => ({
   clipboard: null,
   activeScenario: null,
   simulationRunning: true,
+  sensitiveContentVisible: false,
   customCategories: [],
   customRelations: [],
 
@@ -403,6 +410,21 @@ export const useMindStore = create<MindState>((set, get) => ({
 
   setActiveScenario: (id) => set({ activeScenario: id }),
   setSimulationRunning: (running) => set({ simulationRunning: running }),
+
+  setSensitiveContentVisible: (visible) => set((state) => ({
+    sensitiveContentVisible: visible,
+    // Hiding private content also clears any selection that would otherwise keep showing it.
+    nodes: visible ? state.nodes : state.nodes.map((node) => (
+      node.data.sensitivity === 'private' || node.data.sensitivity === 'sensitive' || node.data.sensitivity === 'restricted'
+        ? { ...node, selected: false }
+        : node
+    )),
+  })),
+
+  setNodeSpatial: (id, position) => set((state) => ({
+    nodes: state.nodes.map((node) => node.id === id ? { ...node, data: { ...node.data, spatial: position, updatedAt: stamp() } } : node),
+    changeLog: [{ id: makeId('change'), at: stamp(), action: '3D position updated', detail: id, nodeCount: state.nodes.length, edgeCount: state.edges.length }, ...state.changeLog].slice(0, 300),
+  })),
 
   resetToStarter: () => set((state) => commit(state, {
     nodes: clone(seedNodes) as MindNode[], edges: clone(seedEdges) as MindEdge[], activeScenario: null,
