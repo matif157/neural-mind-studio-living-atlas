@@ -1,12 +1,10 @@
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { Canvas, useFrame, useLoader, useThree, type ThreeEvent } from '@react-three/fiber';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
+import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import {
-  AdditiveBlending, BufferGeometry, CanvasTexture, CubicBezierCurve3, DoubleSide,
-  Float32BufferAttribute, Group, Mesh, MeshStandardMaterial, Plane, Points,
-  SRGBColorSpace, Vector3,
+  BufferGeometry, CanvasTexture, CubicBezierCurve3, Float32BufferAttribute,
+  Group, Mesh, Plane, Points, SRGBColorSpace, Vector3,
 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { MindNodeKind } from '@shared/domain';
 import type { MindEdge, MindNode } from '../../types/mind';
 import { getMindNodeColor } from '../../types/mind';
@@ -23,6 +21,8 @@ export const MIND3D_CAMERA_PRESETS: Record<Mind3DCameraPreset, { position: Vec3T
   top: { position: [0.001, 9.4, 0.001], target: [0, 0, 0] },
   iso: { position: [6.7, 5.1, 6.7], target: [0, 0, 0] },
 };
+
+const BrainAsset3D = lazy(() => import('./BrainAsset3D'));
 
 /** Cool conceptual palette. It is presentation only and never encodes severity or diagnosis. */
 const MIND3D_ACCENTS: Partial<Record<MindNodeKind, string>> = {
@@ -123,52 +123,6 @@ function StarField({ running = true }: { running?: boolean }) {
   }, []);
   useFrame((_, delta) => { if (ref.current && running) ref.current.rotation.y += delta * 0.003; });
   return <points ref={ref} geometry={geometry}><pointsMaterial size={0.015} vertexColors transparent opacity={0.52} sizeAttenuation depthWrite={false} /></points>;
-}
-
-function BrainAsset({ running }: { running: boolean }) {
-  const gltf = useLoader(GLTFLoader, '/models/conceptual-brain.glb');
-  const brain = useMemo(() => {
-    const model = gltf.scene.clone(true);
-    model.traverse((object) => {
-      if (!(object as Mesh).isMesh) return;
-      const mesh = object as Mesh;
-      // Replace imported textures/materials with a presentation-only cyan sculpture.
-      // Geometry stays untouched; no anatomical or personal meaning is attached here.
-      const source = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-      mesh.material = source.map(() => new MeshStandardMaterial({
-        color: '#00e6ff',
-        emissive: '#00d8f0',
-        emissiveIntensity: 1.55,
-        roughness: 0.3,
-        metalness: 0.18,
-        transparent: true,
-        opacity: 0.86,
-        side: DoubleSide,
-        toneMapped: false,
-      }));
-    });
-    return model;
-  }, [gltf.scene]);
-  const group = useRef<Group>(null);
-  useFrame((state) => {
-    if (!group.current || !running) return;
-    group.current.rotation.y = Math.sin(state.clock.elapsedTime * 0.13) * 0.055;
-    group.current.rotation.z = Math.sin(state.clock.elapsedTime * 0.17) * 0.018;
-    group.current.position.y = Math.sin(state.clock.elapsedTime * 0.55) * 0.025;
-  });
-  return (
-    <group ref={group} scale={1.08}>
-      <primitive object={brain} dispose={null} />
-      <mesh scale={[1.55, 1.05, 1.13]}>
-        <sphereGeometry args={[1, 32, 24]} />
-        <meshBasicMaterial color="#00c8e0" transparent opacity={0.06} blending={AdditiveBlending} depthWrite={false} toneMapped={false} />
-      </mesh>
-      <mesh scale={[1.44, 0.98, 1.03]}>
-        <sphereGeometry args={[1, 52, 36]} />
-        <meshBasicMaterial color="#56dcec" wireframe transparent opacity={0.16} depthWrite={false} toneMapped={false} />
-      </mesh>
-    </group>
-  );
 }
 
 function OrbitArchitecture() {
@@ -534,7 +488,7 @@ function SceneContents({ nodes, edges, running, reducedMotion, mode, selectedNeu
         <>
           <StarField running={effectiveRunning} />
           <OrbitArchitecture />
-          <Suspense fallback={null}><BrainAsset running={effectiveRunning} /></Suspense>
+          <Suspense fallback={null}><BrainAsset3D running={effectiveRunning} /></Suspense>
           {mode === 'mind' && <>
             {edges.map((item) => <SynapseLink key={item.edge.id} {...item} running={effectiveRunning} />)}
             {nodes.map((item) => <NeuronNode key={item.node.id} {...item} animate={!reducedMotion} />)}

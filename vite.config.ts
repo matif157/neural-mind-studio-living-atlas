@@ -9,6 +9,18 @@ export default defineConfig({
       '@shared': fileURLToPath(new URL('./shared', import.meta.url)),
     },
   },
+  build: {
+    rolldownOptions: {
+      output: {
+        manualChunks(id) {
+          // Validation is shared by the stores and shell; keep it out of the
+          // entry chunk so the first paint stays under the asset budget.
+          if (id.includes('node_modules/zod')) return 'validation';
+          return undefined;
+        },
+      },
+    },
+  },
   server: {
     host: '0.0.0.0',
     proxy: {

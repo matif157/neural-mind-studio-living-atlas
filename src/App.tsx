@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
 import {
   BrainCircuit, Check, CircleHelp, Command, Info, Keyboard, Moon, Orbit, PanelBottom,
   Sun, X,
@@ -10,26 +10,40 @@ import {
   aiAnalysisSchema, checkInEntrySchema, clientSettingsSchema, conversationEventSchema,
   decisionRecordSchema, exerciseStateSchema, journalEntrySchema, reflectionSchema,
 } from '@shared/schemas';
-import MindCanvas from './components/MindCanvas';
-import Mind3DWorkspace from './components/Mind3DWorkspace';
-import CognitiveUniverse3D from './components/CognitiveUniverse3D';
-import BrainAnatomy3D from './components/BrainAnatomy3D';
-import Toolbar from './components/Toolbar';
 import TimelineRail from './components/TimelineRail';
 import AnatomyModal from './components/AnatomyModal';
-import ConversationWorkspace from './components/conversation/ConversationWorkspace';
-import { EmotionObservatory, MemoryAtlas, PatternIntelligence, ThoughtExplorer } from './components/workspaces/InsightWorkspaces';
-import { KnowledgeLibrary, NeuroscienceExplorer, ReflectionStudio } from './components/workspaces/PracticeWorkspaces';
-import {
-  BehaviouralSystems, BodyInteroception, HistoryAnalytics, PersonalGrowth, RelationshipDynamics,
-} from './components/workspaces/SystemWorkspaces';
-import SettingsWorkspace from './components/workspaces/SettingsWorkspace';
-import NarrativeThreads from './components/workspaces/NarrativeThreads';
-import {
-  CheckInWorkspace, ConnectionExplorer, ContinuityJournal, DecisionClarityStudio,
-  PersonalTimeline, PrivacyControls, ReflectionJournal, RepetitiveThoughtExplorer,
-  TriggerResponseExplorer,
-} from './components/workspaces/PersonalAtlasWorkspaces';
+
+// Workspaces are loaded on demand. The 3D renderer, its GLB assets and the 2D
+// graph editor stay out of the shell bundle; behaviour and stores are unchanged.
+const MindCanvas = lazy(() => import('./components/MindCanvas'));
+const Mind3DWorkspace = lazy(() => import('./components/Mind3DWorkspace'));
+const CognitiveUniverse3D = lazy(() => import('./components/CognitiveUniverse3D'));
+const BrainAnatomy3D = lazy(() => import('./components/BrainAnatomy3D'));
+const Toolbar = lazy(() => import('./components/Toolbar'));
+const ConversationWorkspace = lazy(() => import('./components/conversation/ConversationWorkspace'));
+const EmotionObservatory = lazy(() => import('./components/workspaces/InsightWorkspaces').then((module) => ({ default: module.EmotionObservatory })));
+const MemoryAtlas = lazy(() => import('./components/workspaces/InsightWorkspaces').then((module) => ({ default: module.MemoryAtlas })));
+const PatternIntelligence = lazy(() => import('./components/workspaces/InsightWorkspaces').then((module) => ({ default: module.PatternIntelligence })));
+const ThoughtExplorer = lazy(() => import('./components/workspaces/InsightWorkspaces').then((module) => ({ default: module.ThoughtExplorer })));
+const KnowledgeLibrary = lazy(() => import('./components/workspaces/PracticeWorkspaces').then((module) => ({ default: module.KnowledgeLibrary })));
+const NeuroscienceExplorer = lazy(() => import('./components/workspaces/PracticeWorkspaces').then((module) => ({ default: module.NeuroscienceExplorer })));
+const ReflectionStudio = lazy(() => import('./components/workspaces/PracticeWorkspaces').then((module) => ({ default: module.ReflectionStudio })));
+const BehaviouralSystems = lazy(() => import('./components/workspaces/SystemWorkspaces').then((module) => ({ default: module.BehaviouralSystems })));
+const BodyInteroception = lazy(() => import('./components/workspaces/SystemWorkspaces').then((module) => ({ default: module.BodyInteroception })));
+const HistoryAnalytics = lazy(() => import('./components/workspaces/SystemWorkspaces').then((module) => ({ default: module.HistoryAnalytics })));
+const PersonalGrowth = lazy(() => import('./components/workspaces/SystemWorkspaces').then((module) => ({ default: module.PersonalGrowth })));
+const RelationshipDynamics = lazy(() => import('./components/workspaces/SystemWorkspaces').then((module) => ({ default: module.RelationshipDynamics })));
+const SettingsWorkspace = lazy(() => import('./components/workspaces/SettingsWorkspace'));
+const NarrativeThreads = lazy(() => import('./components/workspaces/NarrativeThreads'));
+const CheckInWorkspace = lazy(() => import('./components/workspaces/PersonalAtlasWorkspaces').then((module) => ({ default: module.CheckInWorkspace })));
+const ConnectionExplorer = lazy(() => import('./components/workspaces/PersonalAtlasWorkspaces').then((module) => ({ default: module.ConnectionExplorer })));
+const ContinuityJournal = lazy(() => import('./components/workspaces/PersonalAtlasWorkspaces').then((module) => ({ default: module.ContinuityJournal })));
+const DecisionClarityStudio = lazy(() => import('./components/workspaces/PersonalAtlasWorkspaces').then((module) => ({ default: module.DecisionClarityStudio })));
+const PersonalTimeline = lazy(() => import('./components/workspaces/PersonalAtlasWorkspaces').then((module) => ({ default: module.PersonalTimeline })));
+const PrivacyControls = lazy(() => import('./components/workspaces/PersonalAtlasWorkspaces').then((module) => ({ default: module.PrivacyControls })));
+const ReflectionJournal = lazy(() => import('./components/workspaces/PersonalAtlasWorkspaces').then((module) => ({ default: module.ReflectionJournal })));
+const RepetitiveThoughtExplorer = lazy(() => import('./components/workspaces/PersonalAtlasWorkspaces').then((module) => ({ default: module.RepetitiveThoughtExplorer })));
+const TriggerResponseExplorer = lazy(() => import('./components/workspaces/PersonalAtlasWorkspaces').then((module) => ({ default: module.TriggerResponseExplorer })));
 import { deleteLocal, readLocal, STORAGE_KEYS, writeLocal } from './lib/db';
 import { workspaceFromShortcut } from './lib/shortcuts';
 import { hydrateImportStore } from './store/importStore';
@@ -380,7 +394,11 @@ function App() {
 
       <div className="workspace-body">
         <TimelineRail open={timelineRailOpen} onToggle={() => setTimelineRailOpen((value) => !value)} />
-        <main className="workspace-host">{ready ? renderWorkspace() : <div className="loading-state">Restoring your local workspace…</div>}</main>
+        <main className="workspace-host">
+          <Suspense fallback={<div className="loading-state">Loading workspace…</div>}>
+            {ready ? renderWorkspace() : <div className="loading-state">Restoring your local workspace…</div>}
+          </Suspense>
+        </main>
       </div>
 
       <div className={`timeline-drawer ${bottomCollapsed ? 'collapsed' : ''}`}>
@@ -401,7 +419,11 @@ function App() {
       </footer>
 
       {toast && <div className="toast-message" role="status"><Check size={15} /> {toast}</div>}
-      {showBrain3D && <BrainAnatomy3D onClose={() => setShowBrain3D(false)} />}
+      {showBrain3D && (
+        <Suspense fallback={null}>
+          <BrainAnatomy3D onClose={() => setShowBrain3D(false)} />
+        </Suspense>
+      )}
       {showAnatomy && <AnatomyModal onClose={() => setShowAnatomy(false)} />}
       {showHistory && (
         <div className="modal-backdrop" onClick={() => togglePanel('history')}>
