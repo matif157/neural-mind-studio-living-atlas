@@ -363,8 +363,31 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .view-chip { flex: none; border: 1px solid transparent; background: transparent; color: #8194ad; border-radius: 20px; font-size: 9px; padding: 4px 10px; cursor: pointer; }
 .view-chip:hover { color: #dce9f8; }
 .view-chip.active { color: #a6e3e6; border-color: rgba(103, 217, 220, .26); background: rgba(57, 135, 145, .12); }
+.workspace-body { flex: 1; min-height: 0; display: flex; }
 .workspace-host { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .loading-state { flex: 1; display: grid; place-items: center; color: #7488a2; font: 10px var(--font-mono); }
+
+.timeline-rail { width: 206px; min-width: 206px; display: flex; flex-direction: column; border-right: 1px solid var(--line); background: rgba(7, 13, 23, .88); overflow: hidden; }
+.timeline-rail.is-collapsed { width: 34px; min-width: 34px; }
+.timeline-rail-toggle { height: 30px; min-height: 30px; padding: 0 9px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: #8fa5bd; display: flex; align-items: center; gap: 7px; font: 8px var(--font-mono); letter-spacing: .12em; cursor: pointer; }
+.timeline-rail-toggle span { flex: 1; text-align: left; }
+.timeline-rail.is-collapsed .timeline-rail-toggle { padding: 0; justify-content: center; }
+.timeline-rail-body { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 9px 8px 10px; }
+.timeline-rail-copy { margin: 0 0 8px; color: #6d819b; font: 8px/1.5 var(--font-mono); }
+.timeline-rail-summary { display: flex; align-items: baseline; gap: 5px; color: #8296af; font: 8px var(--font-mono); }
+.timeline-rail-summary strong { color: #a5e8ee; font-size: 13px; }
+.timeline-rail-summary span { margin-left: auto; color: #60758f; }
+.timeline-rail-groups { flex: 1; min-height: 0; overflow: auto; margin-top: 10px; padding-right: 2px; }
+.timeline-rail-group { margin-bottom: 10px; }
+.timeline-rail-group.is-undated { border-top: 1px dashed rgba(124, 153, 187, .28); padding-top: 9px; }
+.timeline-rail-group h3 { margin: 0 0 4px; display: flex; align-items: center; justify-content: space-between; color: #9fb3ca; font: 8px var(--font-mono); letter-spacing: .1em; text-transform: uppercase; }
+.timeline-rail-group h3 small { color: #5f748e; }
+.timeline-rail-group button { width: 100%; display: flex; flex-direction: column; gap: 1px; padding: 5px 6px; border: 1px solid transparent; border-radius: 5px; background: rgba(20, 35, 55, .42); color: #bdcce0; text-align: left; cursor: pointer; }
+.timeline-rail-group button:hover, .timeline-rail-group button.is-active { border-color: rgba(120, 203, 213, .3); background: rgba(38, 90, 103, .2); }
+.timeline-rail-group button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 9px; }
+.timeline-rail-group button small { color: #6f849e; font: 7px var(--font-mono); }
+.timeline-rail-empty { color: #6e829b; font: 8px/1.5 var(--font-mono); }
+
 .timeline-drawer { min-height: 31px; max-height: 190px; display: flex; flex-direction: column; border-top: 1px solid var(--line); background: rgba(9, 16, 28, .96); }
 .timeline-drawer.collapsed { height: 31px; }
 .timeline-handle { height: 30px; min-height: 30px; padding: 0 17px; border: 0; background: transparent; color: #8498b1; display: flex; align-items: center; gap: 8px; font: 9px var(--font-mono); letter-spacing: .04em; cursor: pointer; text-align: left; }
@@ -670,7 +693,8 @@ kbd { font: 9px var(--font-mono); color: #b9dbe3; border: 1px solid rgba(125, 16
   background: #eef3f9;
 }
 .theme-light .app-shell { background: linear-gradient(180deg, #f4f8fd, #e9f0f8); }
-.theme-light .app-header, .theme-light .toolbar, .theme-light .app-footer, .theme-light .timeline-drawer, .theme-light .composer { background: rgba(255, 255, 255, .9); }
+.theme-light .app-header, .theme-light .toolbar, .theme-light .app-footer, .theme-light .timeline-drawer, .theme-light .composer, .theme-light .timeline-rail { background: rgba(255, 255, 255, .9); }
+.theme-light .timeline-rail-copy, .theme-light .timeline-rail-summary, .theme-light .timeline-rail-group h3 small, .theme-light .timeline-rail-group button small { color: #536a86; }
 .theme-light .brand-title, .theme-light .workspace-intro h2, .theme-light .title-strip h1, .theme-light .card-head h3, .theme-light .panel-heading { color: #1b2d43; }
 .theme-light .title-strip p, .theme-light .workspace-intro p, .theme-light .card-copy, .theme-light .panel-copy { color: #5a6f89; }
 .theme-light .workspace-card, .theme-light .conversation-list-panel, .theme-light .conversation-context-panel { background: #fff; }

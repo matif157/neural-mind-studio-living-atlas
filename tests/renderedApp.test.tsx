@@ -7,6 +7,7 @@ import CognitiveUniverse3D from '../src/components/CognitiveUniverse3D';
 import Inspector from '../src/components/Inspector';
 import Mind3DWorkspace from '../src/components/Mind3DWorkspace';
 import MindCanvas from '../src/components/MindCanvas';
+import TimelineRail from '../src/components/TimelineRail';
 import {
   edgeVisualState, filterGraphFor3D, isSignalEdge, isSpeculativeEdge,
 } from '../src/lib/mind3d';
@@ -338,6 +339,34 @@ describe('rendered personal mind atlas', () => {
     );
     expect(graph.signalEdges.map((edge) => edge.id)).toEqual(['base']);
     expect(graph.suggestedEdges.map((edge) => edge.id)).toEqual(['proposed', 'awaiting', 'ai', 'hypothesis']);
+  });
+
+  it('keeps stated eras reachable from the persistent timeline rail', () => {
+    const past = makeNode('past', 'memory', 'PAST_WORDING', { era: 'childhood', timePeriod: 'early school' });
+    const undated = makeNode('undated', 'thought', 'Undated thought');
+    const sensitive = makeNode('secret', 'emotion', 'RAIL_SECRET', { privacy: 'sensitive', era: 'present' });
+    const restricted = makeNode('restricted', 'memory', 'RAIL_RESTRICTED', { privacy: 'restricted', era: 'present' });
+    resetStores([past, undated, sensitive, restricted]);
+
+    render(<TimelineRail open onToggle={() => undefined} />);
+    expect(screen.getByTestId('timeline-rail')).toBeTruthy();
+    expect(screen.getByText('childhood')).toBeTruthy();
+    const undatedGroup = document.querySelector('.timeline-rail-group.is-undated') as HTMLElement;
+    expect(undatedGroup.textContent).toContain('Undated thought');
+    expect(document.body.textContent).not.toContain('RAIL_RESTRICTED');
+    expect(document.body.textContent).not.toContain('RAIL_SECRET');
+
+    const button = Array.from(document.querySelectorAll('.timeline-rail-group button'))
+      .find((item) => item.textContent?.includes('PAST_WORDING')) as HTMLButtonElement;
+    fireEvent.click(button);
+    expect(useUiStore.getState().selectedNodeId).toBe('past');
+    // A 3D view keeps its presentation; other workspaces open the map.
+    expect(useUiStore.getState().workspace).toBe('universe');
+
+    useUiStore.setState({ workspace: 'journal', graphView: 'whole' });
+    fireEvent.click(button);
+    expect(useUiStore.getState().workspace).toBe('atlas');
+    expect(useUiStore.getState().graphView).toBe('timeline');
   });
 
   it('shows the same relationship legend in 2D and both 3D views', () => {

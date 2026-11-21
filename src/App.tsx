@@ -15,6 +15,7 @@ import Mind3DWorkspace from './components/Mind3DWorkspace';
 import CognitiveUniverse3D from './components/CognitiveUniverse3D';
 import BrainAnatomy3D from './components/BrainAnatomy3D';
 import Toolbar from './components/Toolbar';
+import TimelineRail from './components/TimelineRail';
 import AnatomyModal from './components/AnatomyModal';
 import ConversationWorkspace from './components/conversation/ConversationWorkspace';
 import { EmotionObservatory, MemoryAtlas, PatternIntelligence, ThoughtExplorer } from './components/workspaces/InsightWorkspaces';
@@ -77,6 +78,7 @@ function App() {
   const [ready, setReady] = useState(false);
   const [showAnatomy, setShowAnatomy] = useState(false);
   const [showBrain3D, setShowBrain3D] = useState(false);
+  const [timelineRailOpen, setTimelineRailOpen] = useState(() => typeof window === 'undefined' || window.innerWidth > 1180);
   // The full-bleed 3D workspace is the default; the lighter accessible universe stays available.
   const [simpleUniverse, setSimpleUniverse] = useState(false);
   const [saved, setSaved] = useState(true);
@@ -376,7 +378,10 @@ function App() {
         </>
       )}
 
-      <main className="workspace-host">{ready ? renderWorkspace() : <div className="loading-state">Restoring your local workspace…</div>}</main>
+      <div className="workspace-body">
+        <TimelineRail open={timelineRailOpen} onToggle={() => setTimelineRailOpen((value) => !value)} />
+        <main className="workspace-host">{ready ? renderWorkspace() : <div className="loading-state">Restoring your local workspace…</div>}</main>
+      </div>
 
       <div className={`timeline-drawer ${bottomCollapsed ? 'collapsed' : ''}`}>
         <button className="timeline-handle" onClick={() => togglePanel('bottom')} aria-expanded={!bottomCollapsed}>
