@@ -124,6 +124,6 @@ tests/       API, project file, pattern utility and rendered-app tests
 docs/        Scientific scope and verification report
 ```
 
-Keyboard shortcuts: `⌘/Ctrl Z` undo, `⌘/Ctrl ⇧ Z` redo, `⌘/Ctrl C/X/V` copy/cut/paste, `⌘/Ctrl D` duplicate, `Alt + 1–0` switch workspace, `Alt + K` open Narrative Threads, `Alt + L` open Personal Cognitive Universe, `?` show help, `Esc` clear focus.
+Keyboard shortcuts: `⌘/Ctrl Z` undo, `⌘/Ctrl ⇧ Z` redo, `⌘/Ctrl C/X/V` copy/cut/paste, `⌘/Ctrl D` duplicate, `Alt/Option + 1–0` switch workspace, `Alt/Option + K` open Narrative Threads, `Alt/Option + L` open Personal Cognitive Universe, `?` show help, `Esc` clear focus. On macOS, `Option` is the `Alt` equivalent and is detected by physical key code.
 
 See `docs/SCIENTIFIC_MODEL.md` for conceptual scope and `docs/TEST_REPORT.md` for verification results.
