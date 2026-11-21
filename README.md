@@ -20,6 +20,20 @@ If you only want the editor, no API is required:
 npm run dev:web
 ```
 
+### Local production deployment
+
+The Express server serves the production client, the API and the 3D brain asset from one origin:
+
+```bash
+npm install
+npm run build
+npm run start
+```
+
+Open `http://localhost:8787`. It binds to `0.0.0.0`, so a device on the same network can use the machine's LAN address (for example `http://192.168.8.100:8787`). Override the port with `PORT=9000 npm run start`.
+
+The default provider is `offline`, so no API key or network access is needed. Set `MIND_API_TOKEN` in `.env` if you want to require a bearer token on `/api` routes. Check the deployment with `curl http://localhost:8787/api/health`.
+
 ## Workspaces
 
 Seventeen workspaces are available from the top navigation (A–Q):
