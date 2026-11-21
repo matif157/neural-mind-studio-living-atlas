@@ -11,6 +11,8 @@ import {
   reflectionSchema,
 } from '@shared/schemas';
 import MindCanvas from './components/MindCanvas';
+import CognitiveUniverse3D from './components/CognitiveUniverse3D';
+import BrainAnatomy3D from './components/BrainAnatomy3D';
 import Toolbar from './components/Toolbar';
 import AnatomyModal from './components/AnatomyModal';
 import ConversationWorkspace from './components/conversation/ConversationWorkspace';
@@ -19,6 +21,7 @@ import { KnowledgeLibrary, NeuroscienceExplorer, ReflectionStudio } from './comp
 import SettingsWorkspace from './components/workspaces/SettingsWorkspace';
 import NarrativeThreads from './components/workspaces/NarrativeThreads';
 import { deleteLocal, readLocal, STORAGE_KEYS, writeLocal } from './lib/db';
+import { workspaceFromShortcut } from './lib/shortcuts';
 import { createProjectFile, downloadProjectFile, migrateProjectFile, validateProjectFile } from './utils/projectFile';
 import { useConversationStore } from './store/conversationStore';
 import { useMindStore } from './store/mindStore';
@@ -62,6 +65,7 @@ function App() {
 
   const [ready, setReady] = useState(false);
   const [showAnatomy, setShowAnatomy] = useState(false);
+  const [showBrain3D, setShowBrain3D] = useState(false);
   const [saved, setSaved] = useState(true);
   const [toast, setToast] = useState('');
   const fileInput = useRef<HTMLInputElement>(null);
@@ -208,6 +212,7 @@ function App() {
       const typing = target && (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable);
       if (typing) return;
       const mod = event.ctrlKey || event.metaKey;
+      const shortcutWorkspace = workspaceFromShortcut(event);
       if (mod && event.key.toLowerCase() === 'z' && !event.shiftKey) { event.preventDefault(); undo(); }
       else if (mod && (event.key.toLowerCase() === 'y' || (event.key.toLowerCase() === 'z' && event.shiftKey))) { event.preventDefault(); redo(); }
       else if (mod && event.key.toLowerCase() === 'c') { event.preventDefault(); copySelection(); notify('Selection copied'); }
@@ -216,13 +221,9 @@ function App() {
       else if (mod && event.key.toLowerCase() === 'd') { event.preventDefault(); duplicateSelection(); notify('Selection duplicated'); }
       else if (event.key === 'Escape') { useMindStore.getState().setActiveScenario(null); useUiStore.getState().closeContextMenu(); }
       else if (event.key === '?') togglePanel('shortcuts');
-      else if (event.altKey && /^[0-9]$/.test(event.key)) {
-        const index = event.key === '0' ? 9 : Number(event.key) - 1;
-        const next = WORKSPACES[index];
-        if (next) { event.preventDefault(); setWorkspace(next.id); }
-      } else if (event.altKey && event.key.toLowerCase() === 'k') {
+      else if (shortcutWorkspace) {
         event.preventDefault();
-        setWorkspace('narrative');
+        setWorkspace(shortcutWorkspace);
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -258,6 +259,7 @@ function App() {
       case 'library': return <KnowledgeLibrary notify={notify} />;
       case 'settings': return <SettingsWorkspace notify={notify} />;
       case 'narrative': return <NarrativeThreads notify={notify} />;
+      case 'universe': return <CognitiveUniverse3D />;
       default: return null;
     }
   };
@@ -271,7 +273,7 @@ function App() {
         </div>
         <nav className="workspace-nav" aria-label="Workspaces">
           {WORKSPACES.map((item) => {
-            const Icon = iconFor(item.id === 'atlas' ? 'circle' : item.id === 'conversation' ? 'users' : item.id === 'emotions' ? 'heart' : item.id === 'thoughts' ? 'lightbulb' : item.id === 'memories' ? 'brain' : item.id === 'patterns' ? 'repeat' : item.id === 'reflection' ? 'check' : item.id === 'neuroscience' ? 'pulse' : item.id === 'library' ? 'book' : item.id === 'narrative' ? 'compass' : 'shield');
+            const Icon = iconFor(item.id === 'atlas' ? 'circle' : item.id === 'conversation' ? 'users' : item.id === 'emotions' ? 'heart' : item.id === 'thoughts' ? 'lightbulb' : item.id === 'memories' ? 'brain' : item.id === 'patterns' ? 'repeat' : item.id === 'reflection' ? 'check' : item.id === 'neuroscience' ? 'pulse' : item.id === 'library' ? 'book' : item.id === 'narrative' ? 'compass' : item.id === 'universe' ? 'universe' : 'shield');
             return <button key={item.id} className={`workspace-tab ${workspace === item.id ? 'active' : ''}`} onClick={() => setWorkspace(item.id)} aria-current={workspace === item.id ? 'page' : undefined} title={`${item.key} · ${item.label}`}><Icon size={14} /><span>{item.short}</span></button>;
           })}
         </nav>
@@ -279,6 +281,7 @@ function App() {
           <div className={`save-state ${saved ? 'is-saved' : 'is-unsaved'}`}><span />{saved ? 'Saved locally' : 'Saving…'}</div>
           <button className="header-help" onClick={() => setSettingsTheme()} title="Toggle theme" aria-label="Toggle theme">{settings.theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}</button>
           <button className="header-help" onClick={() => togglePanel('shortcuts')} title="Shortcuts" aria-label="Show shortcuts"><Keyboard size={16} /></button>
+          <button className="header-help" onClick={() => setShowBrain3D(true)} title="Anatomical brain model" aria-label="Open anatomical brain model"><BrainCircuit size={17} /></button>
           <button className="header-help" onClick={() => setShowAnatomy(true)} title="About the model" aria-label="About the model"><CircleHelp size={17} /></button>
         </div>
       </header>
@@ -337,10 +340,11 @@ function App() {
 
       <footer className="app-footer">
         <div className="footer-left"><span className="footer-dot" /> LOCAL-FIRST WORKSPACE <span className="footer-divider">/</span> {conversations.length} conversation(s) <span className="footer-divider">/</span> YOUR DATA STAYS ON THIS DEVICE</div>
-        <div className="footer-right"><span><Command size={12} /> Z undo</span><span><Command size={12} /> C copy</span><span><Command size={12} /> V paste</span><span>ALT + 1–0 / K workspaces</span></div>
+        <div className="footer-right"><span><Command size={12} /> Z undo</span><span><Command size={12} /> C copy</span><span><Command size={12} /> V paste</span><span>ALT / OPTION + 1–0 / K / L workspaces</span></div>
       </footer>
 
       {toast && <div className="toast-message" role="status"><Check size={15} /> {toast}</div>}
+      {showBrain3D && <BrainAnatomy3D onClose={() => setShowBrain3D(false)} />}
       {showAnatomy && <AnatomyModal onClose={() => setShowAnatomy(false)} />}
       {showHistory && (
         <div className="modal-backdrop" onClick={() => togglePanel('history')}>
@@ -362,8 +366,9 @@ function App() {
               <div><kbd>⌘/Ctrl C / X / V</kbd><span>Copy / cut / paste</span></div>
               <div><kbd>⌘/Ctrl D</kbd><span>Duplicate selection</span></div>
               <div><kbd>Shift + drag</kbd><span>Multi-select</span></div>
-              <div><kbd>Alt + 1–0</kbd><span>Switch workspace</span></div>
-              <div><kbd>Alt + K</kbd><span>Narrative Threads</span></div>
+              <div><kbd>Alt / Option + 1–0</kbd><span>Switch workspace</span></div>
+              <div><kbd>Alt / Option + K</kbd><span>Narrative Threads</span></div>
+              <div><kbd>Alt / Option + L</kbd><span>Personal Cognitive Universe</span></div>
               <div><kbd>?</kbd><span>Show this help</span></div>
               <div><kbd>Esc</kbd><span>Clear focus / menus</span></div>
             </div>

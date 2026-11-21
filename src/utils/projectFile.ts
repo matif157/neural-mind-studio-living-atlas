@@ -49,6 +49,10 @@ export function migrateProjectFile(value: unknown): ProjectFile | null {
         isCore: data.isCore ?? false,
         collapsed: false,
         locked: false,
+        privacy: data.privacy ?? 'private',
+        safetySignal: data.safetySignal ?? false,
+        dimension: data.dimension,
+        pos3: data.pos3,
       },
     });
   });
@@ -64,6 +68,9 @@ export function migrateProjectFile(value: unknown): ProjectFile | null {
         provenance: 'user-confirmed',
         confidence: null,
         signal: data.signal ?? true,
+        structural: data.structural ?? false,
+        review: data.review ?? 'confirmed',
+        evidence: data.evidence ?? [],
       },
     });
   });

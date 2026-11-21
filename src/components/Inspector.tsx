@@ -4,11 +4,13 @@ import {
   Pencil, Save, ShieldAlert, Trash2, Unlink, X,
 } from 'lucide-react';
 import {
-  MIND_RELATIONS, NODE_STATUSES, PROVENANCE_LABELS, VALENCES,
-  type MindRelation, type Provenance,
+  MIND_RELATIONS, NODE_STATUSES, PRIVACY_LEVELS, PROVENANCE_LABELS, VALENCES,
+  type MindRelation, type PrivacyLevel, type Provenance,
 } from '@shared/domain';
+import { PERSONAL_DIMENSIONS, dimensionForKind } from '@shared/dimensions';
 import { useMindStore } from '../store/mindStore';
 import { useUiStore } from '../store/uiStore';
+import { displayLabel, isSignalEdge } from '../lib/mind3d';
 import {
   getMindNodeColor, NODE_META, type MindEdge, type MindNode,
   type MindNodeData, type MindNodeKind, type ThoughtValence,
@@ -29,11 +31,17 @@ function Inspector({ selectedNode, selectedEdge }: InspectorProps) {
   const acceptNode = useMindStore((state) => state.acceptNode);
   const correctNode = useMindStore((state) => state.correctNode);
   const rejectNode = useMindStore((state) => state.rejectNode);
+  const confirmEdge = useMindStore((state) => state.confirmEdge);
+  const correctEdge = useMindStore((state) => state.correctEdge);
+  const rejectEdge = useMindStore((state) => state.rejectEdge);
   const setSelectedNode = useUiStore((state) => state.setSelectedNode);
+  const secureView = useUiStore((state) => state.secureView);
+  const toggleSecureView = useUiStore((state) => state.toggleSecureView);
   const [draft, setDraft] = useState<MindNodeData | null>(null);
   const [edgeDraft, setEdgeDraft] = useState<{
     relation: MindRelation; customRelation: string; weight: number; note: string;
     explanation: string; direction: 'forward' | 'reverse' | 'bidirectional'; provenance: Provenance;
+    review: 'suggested' | 'confirmed' | 'rejected'; structural: boolean;
   } | null>(null);
 
   useEffect(() => {
@@ -48,6 +56,8 @@ function Inspector({ selectedNode, selectedEdge }: InspectorProps) {
       explanation: selectedEdge.data?.explanation ?? '',
       direction: selectedEdge.data?.direction ?? 'forward',
       provenance: selectedEdge.data?.provenance ?? 'user-confirmed',
+      review: selectedEdge.data?.review ?? 'confirmed',
+      structural: selectedEdge.data?.structural ?? false,
     });
     else setEdgeDraft(null);
   }, [selectedEdge?.id, selectedEdge?.data]);
@@ -69,9 +79,28 @@ function Inspector({ selectedNode, selectedEdge }: InspectorProps) {
         <div className="panel-heading">Relationship</div>
         <p className="panel-copy">Define what this pathway means in your conceptual model. Links are interpretations, not proof of cause.</p>
         <div className="connection-card">
-          <div className="connection-end"><span className="connection-node-dot" style={{ background: source ? getMindNodeColor(source.data) : '#8292aa' }} />{source?.data.label ?? 'Unknown node'}</div>
+          <div className="connection-end"><span className="connection-node-dot" style={{ background: source ? getMindNodeColor(source.data) : '#8292aa' }} />{source ? displayLabel(source, secureView) : 'Unknown node'}</div>
           <ArrowDownRight size={16} className="connection-arrow" />
-          <div className="connection-end"><span className="connection-node-dot" style={{ background: target ? getMindNodeColor(target.data) : '#8292aa' }} />{target?.data.label ?? 'Unknown node'}</div>
+          <div className="connection-end"><span className="connection-node-dot" style={{ background: target ? getMindNodeColor(target.data) : '#8292aa' }} />{target ? displayLabel(target, secureView) : 'Unknown node'}</div>
+        </div>
+        <div className="relationship-review" data-testid="relationship-review">
+          <div className="review-row"><span>Review status</span><strong className={`chip ${edgeDraft.review}`}>{edgeDraft.review}</strong></div>
+          <div className="review-row"><span>Signal bearing</span><strong>{isSignalEdge(selectedEdge) ? 'yes' : 'no — excluded from propagation and analysis'}</strong></div>
+          <div className="review-row"><span>Evidence class</span><strong>{edgeDraft.provenance}</strong></div>
+          {selectedEdge.data?.evidence.length ? (
+            <div className="review-evidence">
+              <span>Supporting information</span>
+              {selectedEdge.data.evidence.slice(0, 3).map((item) => <blockquote key={`${item.eventId}-${item.date}`}>“{item.excerpt}”</blockquote>)}
+            </div>
+          ) : null}
+          {edgeDraft.explanation && <p className="review-explanation">{edgeDraft.explanation}</p>}
+          {edgeDraft.review === 'suggested' && (
+            <div className="review-actions">
+              <button onClick={() => confirmEdge(selectedEdge.id)}><Check size={13} /> Confirm</button>
+              <button onClick={() => correctEdge(selectedEdge.id, edgeDraft)}><Pencil size={13} /> Correct</button>
+              <button onClick={() => rejectEdge(selectedEdge.id)}><X size={13} /> Reject</button>
+            </div>
+          )}
         </div>
         <label className="field-label">Relationship type</label>
         <select className="field-control" value={edgeDraft.customRelation ? `custom:${edgeDraft.customRelation}` : edgeDraft.relation}
@@ -124,6 +153,18 @@ function Inspector({ selectedNode, selectedEdge }: InspectorProps) {
   const meta = NODE_META[draft.kind];
   const custom = draft.customKind ? customCategories.find((item) => item.id === draft.customKind) : undefined;
   const nodeColor = custom?.color ?? getMindNodeColor(draft);
+
+  if (!secureView && (draft.privacy === 'sensitive' || draft.privacy === 'restricted')) {
+    return (
+      <aside className="side-panel inspector-panel inspector-empty" data-testid="privacy-gate">
+        <div className="panel-kicker">PROTECTED ENTRY</div>
+        <div className="empty-inspector-orb"><ShieldAlert size={26} /></div>
+        <div className="panel-heading">Sensitive entry hidden</div>
+        <p className="panel-copy">This entry is hidden by default. Its words are not shown in ordinary exploration or relationship filtering.</p>
+        <button className="primary-button" onClick={toggleSecureView}>Enable secure view to review</button>
+      </aside>
+    );
+  }
   const patch = (value: Partial<MindNodeData>) => setDraft((current) => current ? { ...current, ...value } : current);
   const valences: ThoughtValence[] = [...VALENCES];
 
@@ -159,6 +200,21 @@ function Inspector({ selectedNode, selectedEdge }: InspectorProps) {
           {customCategories.map((category) => <option key={category.id} value={category.id}>{category.label}</option>)}
         </select>
       )}
+      <label className="field-label">Personal dimension</label>
+      <select className="field-control" value={draft.dimension ?? dimensionForKind(draft.kind)} onChange={(event) => patch({ dimension: event.target.value as typeof draft.dimension })}>
+        {PERSONAL_DIMENSIONS.map((dimension) => <option key={dimension.id} value={dimension.id}>{dimension.label}</option>)}
+      </select>
+      <label className="field-label">Privacy boundary</label>
+      <select className="field-control" value={draft.privacy ?? 'private'} onChange={(event) => patch({ privacy: event.target.value as PrivacyLevel })}>
+        {PRIVACY_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}
+      </select>
+      {!secureView && (draft.privacy === 'sensitive' || draft.privacy === 'restricted') && (
+        <div className="privacy-notice">Hidden from ordinary 3D exploration. Enable secure view to review this entry.</div>
+      )}
+      <label className="toggle-row compact-toggle">
+        <input type="checkbox" checked={draft.safetySignal ?? false} onChange={(event) => patch({ safetySignal: event.target.checked })} />
+        <span><strong>Danger signal</strong><small>Keep exact words for safety context only; never treat as identity.</small></span>
+      </label>
       <label className="field-label">Node title</label>
       <input className="field-control" value={draft.label} onChange={(event) => patch({ label: event.target.value })} />
       <label className="field-label">Description</label>

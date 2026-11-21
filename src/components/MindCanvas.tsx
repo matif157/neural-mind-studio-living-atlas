@@ -9,6 +9,7 @@ import {
   RotateCcw, Search, Trash2, Ungroup, X,
 } from 'lucide-react';
 import { GRAPH_VIEWS } from '@shared/domain';
+import { dimensionMeta } from '@shared/dimensions';
 import MindNeuronNode from './MindNeuronNode';
 import NeuralEdge from './NeuralEdge';
 import Palette from './Palette';
@@ -16,6 +17,7 @@ import Inspector from './Inspector';
 import { useMindStore } from '../store/mindStore';
 import { useUiStore } from '../store/uiStore';
 import { scenarios } from '../data/scenarios';
+import { displayLabel, isSignalEdge, nodeDimension, nodePrivacy } from '../lib/mind3d';
 import { getMindNodeColor, NODE_META, type MindEdge, type MindNode, type MindNodeKind } from '../types/mind';
 
 const nodeTypes = { mind: MindNeuronNode };
@@ -45,7 +47,7 @@ function MindWorkspace({ onFitRef }: MindWorkspaceProps) {
   const duplicateSelection = useMindStore((state) => state.duplicateSelection);
   const acceptNode = useMindStore((state) => state.acceptNode);
   const rejectNode = useMindStore((state) => state.rejectNode);
-  const { graphView, query, kindFilter, provenanceFilter, setQuery, clearFilters, contextMenu, openContextMenu, closeContextMenu, selectedNodeId, setSelectedNode } = useUiStore();
+  const { graphView, query, kindFilter, provenanceFilter, dimensionFilter, secureView, setQuery, clearFilters, contextMenu, openContextMenu, closeContextMenu, selectedNodeId, setSelectedNode } = useUiStore();
   const [tracedIds, setTracedIds] = useState<Set<string> | null>(null);
   const scenario = scenarios.find((item) => item.id === activeScenario);
   const view = GRAPH_VIEWS.find((item) => item.id === graphView) ?? GRAPH_VIEWS[0];
@@ -77,8 +79,11 @@ function MindWorkspace({ onFitRef }: MindWorkspaceProps) {
   const matches = useMemo(() => {
     const term = query.trim().toLowerCase();
     if (!term) return [];
-    return nodes.filter((node) => [node.data.label, node.data.description, node.data.originalText ?? '', node.data.kind, ...node.data.tags].join(' ').toLowerCase().includes(term));
-  }, [nodes, query]);
+    return nodes.filter((node) => {
+      if (!secureView && (nodePrivacy(node) === 'sensitive' || nodePrivacy(node) === 'restricted')) return false;
+      return [displayLabel(node, secureView), node.data.description, node.data.originalText ?? '', node.data.kind, ...node.data.tags].join(' ').toLowerCase().includes(term);
+    });
+  }, [nodes, query, secureView]);
   const matchIds = useMemo(() => new Set(matches.map((node) => node.id)), [matches]);
   const selectedIds = useMemo(() => {
     const ids = new Set(nodes.filter((node) => node.selected).map((node) => node.id));
@@ -88,6 +93,7 @@ function MindWorkspace({ onFitRef }: MindWorkspaceProps) {
   const relatedIds = useMemo(() => {
     const ids = new Set(selectedIds);
     for (const edge of edges) {
+      if (!isSignalEdge(edge)) continue;
       if (selectedIds.has(edge.source)) ids.add(edge.target);
       if (selectedIds.has(edge.target)) ids.add(edge.source);
     }
@@ -99,14 +105,20 @@ function MindWorkspace({ onFitRef }: MindWorkspaceProps) {
     if (viewIds && !viewIds.has(node.id)) return false;
     if (kindFilter.length && !kindFilter.includes(node.data.kind)) return false;
     if (provenanceFilter.length && !provenanceFilter.includes(node.data.provenance)) return false;
+    if (!secureView && (nodePrivacy(node) === 'sensitive' || nodePrivacy(node) === 'restricted')) return false;
+    if (dimensionFilter !== 'all' && nodeDimension(node) !== dimensionFilter) return false;
     if (query.trim() && !matchIds.has(node.id)) return true; // keep structure, dim non-matches
     return true;
   }).map((node) => {
     const searchClass = query.trim() ? (matchIds.has(node.id) ? 'search-match' : 'search-dimmed') : '';
     const focusClass = selectedIds.size ? (relatedIds.has(node.id) ? 'selected-focus' : 'selected-dimmed') : '';
     const traceClass = tracedIds && !tracedIds.has(node.id) ? 'trace-dimmed' : '';
-    return { ...node, className: [searchClass, focusClass, traceClass].filter(Boolean).join(' ') };
-  }), [nodes, collapsedParents, viewIds, kindFilter, provenanceFilter, query, matchIds, selectedIds, relatedIds, tracedIds]);
+    return {
+      ...node,
+      data: { ...node.data, label: displayLabel(node, secureView) },
+      className: [searchClass, focusClass, traceClass].filter(Boolean).join(' '),
+    };
+  }), [nodes, collapsedParents, viewIds, kindFilter, provenanceFilter, dimensionFilter, secureView, query, matchIds, selectedIds, relatedIds, tracedIds]);
 
   const visibleIds = useMemo(() => new Set(visibleNodes.map((node) => node.id)), [visibleNodes]);
   const visibleEdges = useMemo(() => edges.filter((edge) => visibleIds.has(edge.source) && visibleIds.has(edge.target)).map((edge) => {
@@ -131,6 +143,7 @@ function MindWorkspace({ onFitRef }: MindWorkspaceProps) {
     const ids = new Set([id]);
     for (let depth = 0; depth < 2; depth += 1) {
       for (const edge of edges) {
+        if (!isSignalEdge(edge)) continue;
         if (ids.has(edge.source)) ids.add(edge.target);
         if (ids.has(edge.target)) ids.add(edge.source);
       }
@@ -179,14 +192,16 @@ function MindWorkspace({ onFitRef }: MindWorkspaceProps) {
             </div>
             <button className="icon-button small" title="Fit graph" onClick={fit}><Maximize2 size={14} /></button>
             <button className="icon-button small" title="Reset view and filters" onClick={() => { clearFilters(); setTracedIds(null); fit(); }}><RotateCcw size={14} /></button>
+            <button className={`view-chip ${secureView ? 'active' : ''}`} title={secureView ? 'Hide sensitive entries' : 'Reveal sensitive entries for review'} onClick={() => useUiStore.getState().toggleSecureView()}>{secureView ? 'Secure view on' : 'Secure view off'}</button>
             <button className="icon-button small" title="Fullscreen canvas" onClick={() => canvasRef.current?.requestFullscreen?.()}><Expand size={14} /></button>
           </div>
         </div>
 
-        {(kindFilter.length > 0 || provenanceFilter.length > 0 || tracedIds) && (
+        {(kindFilter.length > 0 || provenanceFilter.length > 0 || dimensionFilter !== 'all' || tracedIds) && (
           <div className="filter-strip">
             {kindFilter.map((kind) => <button key={kind} onClick={() => useUiStore.getState().toggleKindFilter(kind)}>{NODE_META[kind].label} <X size={11} /></button>)}
             {provenanceFilter.map((item) => <button key={item} onClick={() => useUiStore.getState().toggleProvenanceFilter(item)}>{item} <X size={11} /></button>)}
+            {dimensionFilter !== 'all' && <button onClick={() => useUiStore.getState().setDimensionFilter('all')}>{dimensionMeta(dimensionFilter).label} <X size={11} /></button>}
             {tracedIds && <button onClick={() => setTracedIds(null)}>Tracing {tracedIds.size} nodes <X size={11} /></button>}
           </div>
         )}

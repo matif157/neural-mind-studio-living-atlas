@@ -119,7 +119,7 @@ function validAnalysis(): AiAnalysis {
       { tempId: 'n1', kind: 'thought', label: 'I am not important to them', description: '', confidence: 0.6, evidence: 'quote' },
       { tempId: 'n2', kind: 'emotion', label: 'Sadness', description: '', confidence: 0.6, evidence: 'quote' },
     ],
-    proposed_graph_edges: [{ source: 'n1', target: 'n2', relation: 'co-occurs with', weight: 0.6, explanation: 'Both appeared.' }],
+    proposed_graph_edges: [{ source: 'n1', target: 'n2', relation: 'co-occurs with', weight: 0.6, explanation: 'Both appeared.', evidence: 'quote' }],
     clarifying_questions: ['What happened next?'],
     safety_flags: [],
   };

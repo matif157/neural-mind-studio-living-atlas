@@ -1,8 +1,9 @@
 import { z } from 'zod';
 import {
-  AI_PROVIDERS, CERTAINTIES, MIND_NODE_KINDS, MIND_RELATIONS,
-  NODE_STATUSES, PROVENANCE_LABELS, VALENCES,
+  AI_PROVIDERS, CERTAINTIES, EDGE_REVIEW_STATUSES, MIND_NODE_KINDS, MIND_RELATIONS,
+  NODE_STATUSES, PRIVACY_LEVELS, PROVENANCE_LABELS, VALENCES,
 } from './domain';
+import { PERSONAL_DIMENSION_IDS } from './dimensions';
 
 /** Versioned, portable graph format. New fields are optional so v1 projects can be migrated. */
 export const evidenceRefSchema = z.object({
@@ -40,6 +41,13 @@ export const mindNodeDataSchema = z.object({
   collapsed: z.boolean().default(false),
   locked: z.boolean().default(false),
   customKind: z.string().max(80).optional(),
+  /** Organisational lens. Defaults are derived from kind; never a clinical or brain-region claim. */
+  dimension: z.enum(PERSONAL_DIMENSION_IDS).optional(),
+  privacy: z.enum(PRIVACY_LEVELS).default('private'),
+  /** Danger-signal wording is stored verbatim only for safety signalling, never as identity. */
+  safetySignal: z.boolean().default(false),
+  /** Presentation-only 3D coordinate. Independent of the 2D position unless explicitly synced. */
+  pos3: z.object({ x: z.number().finite(), y: z.number().finite(), z: z.number().finite() }).optional(),
 });
 
 export const mindNodeSchema = z.object({
@@ -67,6 +75,11 @@ export const mindEdgeDataSchema = z.object({
   confidence: z.number().min(0).max(1).nullable().default(null),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
+  /** Structural wires organise the map and never carry signal or enter analysis. */
+  structural: z.boolean().default(false),
+  /** Suggested relationships remain inert until confirmed, corrected or rejected. */
+  review: z.enum(EDGE_REVIEW_STATUSES).default('confirmed'),
+  evidence: z.array(evidenceRefSchema).max(50).default([]),
 });
 
 export const mindEdgeSchema = z.object({
@@ -212,6 +225,7 @@ const aiProposedEdgeSchema = z.object({
   relation: z.enum(MIND_RELATIONS),
   weight: z.number().min(0).max(1).default(0.5),
   explanation: z.string().max(1200).default(''),
+  evidence: z.string().max(1200).default(''),
 }).strict();
 
 export const SAFETY_FLAGS = ['possible-crisis', 'self-harm', 'harm-to-others', 'medical-symptoms', 'severe-distress'] as const;
