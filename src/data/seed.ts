@@ -20,6 +20,7 @@ const node = (
     label, kind, description, innerVoice, balancedVoice, intensity, valence, tags,
     createdAt: 'seed', updatedAt: 'seed', isCore: false, provenance: 'seed', status: 'active',
     confidence: null, evidence: [], collapsed: false, locked: false, isGroup: false,
+    sensitivity: 'standard', spatial: null,
   },
 });
 
@@ -29,7 +30,7 @@ const edge = (id: string, source: string, target: string, relation: MindRelation
   target,
   type: 'neural',
   animated: true,
-  data: { relation, weight, note, signal: true, direction: 'forward', provenance: 'seed', confidence: null, createdAt: 'seed' },
+  data: { relation, weight, note, signal: true, direction: 'forward', provenance: 'seed', confidence: null, approval: 'approved', createdAt: 'seed' },
 });
 
 export const seedNodes: MindNode[] = [
