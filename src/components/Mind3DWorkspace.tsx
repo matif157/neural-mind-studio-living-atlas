@@ -15,10 +15,12 @@ import {
   type Mind3DLayoutMode, type Mind3DViewId, type Vec3Tuple,
 } from '../utils/mind3dLayout';
 import { isNodeDisplayable, isNodeMasked, sensitivityOf, type PrivacyView } from '../utils/privacy';
+import { edgeVisualState } from '../lib/mind3d';
 import Mind3DScene, {
   MIND3D_CAMERA_PRESETS, type Mind3DCameraPreset, type Mind3DMode,
   type SceneEdge, type SceneNode,
 } from './three/Mind3DScene';
+import EdgeLegend from './EdgeLegend';
 import Inspector from './Inspector';
 
 interface Mind3DWorkspaceProps {
@@ -181,9 +183,6 @@ export default function Mind3DWorkspace({ onOpen2D, onOpenCompanion }: Mind3DWor
   const sceneEdges: SceneEdge[] = useMemo(() => privacyEdges.map((edge) => {
     const selected = Boolean(edge.selected);
     const active = Boolean(activeNodeId && (edge.source === activeNodeId || edge.target === activeNodeId));
-    const speculative = edge.data?.approval !== 'approved'
-      || edge.data?.provenance === 'ai-suggested'
-      || edge.data?.evidenceClass === 'system-hypothesis';
     return {
       edge,
       source: layout.get(edge.source) ?? ZERO,
@@ -191,7 +190,7 @@ export default function Mind3DWorkspace({ onOpen2D, onOpenCompanion }: Mind3DWor
       active,
       selected,
       dimmed: Boolean(activeNodeId && !active && !selected),
-      speculative,
+      visualState: edgeVisualState(edge),
       running,
       onSelect: (target) => {
         setNodes(nodes.map((node) => ({ ...node, selected: false })));
@@ -436,6 +435,7 @@ export default function Mind3DWorkspace({ onOpen2D, onOpenCompanion }: Mind3DWor
                 <span>{visibleNodes.length}</span> NODES <i>·</i> <span>{sceneEdges.length}</span> LINKS
               </div>
               <div className="mind3d-map-label"><span className="mind3d-live-dot" /> CONCEPTUAL MAP · NOT A BRAIN SCAN</div>
+              <div className="mind3d-edge-legend"><EdgeLegend compact /></div>
             </>
           )}
           <div className="mind3d-view-toggle">

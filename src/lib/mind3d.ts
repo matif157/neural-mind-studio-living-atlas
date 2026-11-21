@@ -55,17 +55,51 @@ export function isVisibleIn3D(node: MindNode, options: VisibilityOptions = {}): 
   return true;
 }
 
+export const EDGE_VISUAL_COLORS = {
+  confirmed: '#78cbd5',
+  suggested: '#f5b94c',
+  structural: '#4c617c',
+  excluded: '#d98ba0',
+} as const;
+
+export type EdgeVisualState = keyof typeof EDGE_VISUAL_COLORS;
+
 /**
- * Structural, suggested and rejected relationships never propagate signal and
- * never enter loop, hub or AI context calculations.
+ * Any relationship that has not been approved by the person is speculative —
+ * whichever compatibility field recorded it. Seed and legacy edges without an
+ * `approval` field are confirmed; only an explicit pending/rejected status or
+ * an AI/system origin makes an edge speculative.
+ */
+export function isSpeculativeEdge(edge: MindEdge): boolean {
+  const data = edge.data;
+  if (!data || data.structural === true) return false;
+  return data.review === 'suggested'
+    || data.approval === 'pending'
+    || data.provenance === 'ai-suggested'
+    || data.evidenceClass === 'system-hypothesis';
+}
+
+export function isExcludedEdge(edge: MindEdge): boolean {
+  const data = edge.data;
+  if (!data) return true;
+  return data.review === 'rejected'
+    || data.approval === 'rejected'
+    || data.signal === false;
+}
+
+export function edgeVisualState(edge: MindEdge): EdgeVisualState {
+  if (edge.data?.structural === true) return 'structural';
+  if (isSpeculativeEdge(edge)) return 'suggested';
+  if (isExcludedEdge(edge)) return 'excluded';
+  return 'confirmed';
+}
+
+/**
+ * Structural, suggested, rejected and non-signalling relationships never
+ * propagate signal and never enter loop, hub or AI context calculations.
  */
 export function isSignalEdge(edge: MindEdge): boolean {
-  const data = edge.data;
-  if (!data) return false;
-  if (data.structural === true) return false;
-  if (data.review === 'suggested' || data.review === 'rejected') return false;
-  if (data.signal === false) return false;
-  return true;
+  return edgeVisualState(edge) === 'confirmed';
 }
 
 export function filterGraphFor3D(nodes: MindNode[], edges: MindEdge[], options: VisibilityOptions = {}) {
@@ -77,7 +111,7 @@ export function filterGraphFor3D(nodes: MindNode[], edges: MindEdge[], options: 
     edges: visibleEdges,
     hiddenCount: nodes.length - visibleNodes.length,
     signalEdges: visibleEdges.filter(isSignalEdge),
-    suggestedEdges: visibleEdges.filter((edge) => edge.data?.review === 'suggested'),
+    suggestedEdges: visibleEdges.filter(isSpeculativeEdge),
   };
 }
 
@@ -149,6 +183,14 @@ export function explainRelationship(
   const byId = new Map(nodes.map((node) => [node.id, node]));
   const source = byId.get(edge.source);
   const target = byId.get(edge.target);
+  const state = edgeVisualState(edge);
+  const confirmationStatus = state === 'suggested'
+    ? 'suggested'
+    : state === 'structural'
+      ? 'structural'
+      : state === 'excluded'
+        ? (edge.data?.review === 'rejected' || edge.data?.approval === 'rejected' ? 'rejected' : 'not signal-bearing')
+        : (edge.data?.review ?? 'confirmed');
   return {
     source: source ? displayLabel(source, secureView) : edge.source,
     destination: target ? displayLabel(target, secureView) : edge.target,
@@ -156,8 +198,8 @@ export function explainRelationship(
     supportingInformation: edge.data?.evidence.map((item) => item.excerpt).join(' · ') || edge.data?.note || '',
     evidenceClass: edge.data?.provenance ?? 'unspecified',
     explanation: edge.data?.explanation ?? '',
-    confirmationStatus: edge.data?.review ?? 'confirmed',
-    signalBearing: isSignalEdge(edge),
-    structural: edge.data?.structural === true,
+    confirmationStatus,
+    signalBearing: state === 'confirmed',
+    structural: state === 'structural',
   };
 }

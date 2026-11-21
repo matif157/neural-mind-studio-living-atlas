@@ -5,8 +5,11 @@ import type { MindNodeKind } from '@shared/domain';
 import BrainAnatomy3D from '../src/components/BrainAnatomy3D';
 import CognitiveUniverse3D from '../src/components/CognitiveUniverse3D';
 import Inspector from '../src/components/Inspector';
+import Mind3DWorkspace from '../src/components/Mind3DWorkspace';
 import MindCanvas from '../src/components/MindCanvas';
-import { filterGraphFor3D, isSignalEdge } from '../src/lib/mind3d';
+import {
+  edgeVisualState, filterGraphFor3D, isSignalEdge, isSpeculativeEdge,
+} from '../src/lib/mind3d';
 import { useMindStore } from '../src/store/mindStore';
 import { useUiStore } from '../src/store/uiStore';
 import type { MindEdge, MindEdgeData, MindNode, MindNodeData } from '../src/types/mind';
@@ -303,6 +306,61 @@ describe('rendered personal mind atlas', () => {
     useUiStore.setState({ selectedNodeId: 'a' });
     render(<CognitiveUniverse3D />);
     expect(screen.getByText(/excluded from signal/)).toBeTruthy();
+  });
+
+  it('classifies every compatibility flag with one visual rule', () => {
+    const base = makeEdge('base', 'a', 'b');
+    const legacy = { ...base, data: { ...base.data!, approval: undefined } } as unknown as MindEdge;
+    const proposed = makeEdge('proposed', 'a', 'b', { review: 'suggested' });
+    const awaiting = makeEdge('awaiting', 'a', 'b', { approval: 'pending' });
+    const aiOrigin = makeEdge('ai', 'a', 'b', { provenance: 'ai-suggested' });
+    const hypothesis = makeEdge('hypothesis', 'a', 'b', { evidenceClass: 'system-hypothesis' });
+    const structural = makeEdge('structural', 'a', 'b', { structural: true });
+    const rejected = makeEdge('rejected', 'a', 'b', { review: 'rejected' });
+    const muted = makeEdge('muted', 'a', 'b', { signal: false });
+
+    expect(edgeVisualState(base)).toBe('confirmed');
+    expect(edgeVisualState(legacy)).toBe('confirmed');
+    for (const edge of [proposed, awaiting, aiOrigin, hypothesis]) {
+      expect(edgeVisualState(edge)).toBe('suggested');
+      expect(isSpeculativeEdge(edge)).toBe(true);
+      expect(isSignalEdge(edge)).toBe(false);
+    }
+    expect(edgeVisualState(structural)).toBe('structural');
+    expect(isSpeculativeEdge(structural)).toBe(false);
+    expect(edgeVisualState(rejected)).toBe('excluded');
+    expect(edgeVisualState(muted)).toBe('excluded');
+
+    const graph = filterGraphFor3D(
+      [makeNode('a'), makeNode('b')],
+      [base, proposed, awaiting, aiOrigin, hypothesis, structural, rejected, muted],
+      {},
+    );
+    expect(graph.signalEdges.map((edge) => edge.id)).toEqual(['base']);
+    expect(graph.suggestedEdges.map((edge) => edge.id)).toEqual(['proposed', 'awaiting', 'ai', 'hypothesis']);
+  });
+
+  it('shows the same relationship legend in 2D and both 3D views', () => {
+    const lineClasses = () => Array.from(document.querySelectorAll('[data-testid="relationship-legend"] .edge-line'))
+      .map((node) => node.className).join('|');
+
+    resetStores([makeNode('a'), makeNode('b')]);
+    render(<MindCanvas onFitRef={() => undefined} />);
+    const legend = screen.getByTestId('relationship-legend');
+    for (const label of ['Confirmed', 'Suggested', 'Structural', 'Excluded']) {
+      expect(legend.textContent).toContain(label);
+    }
+    const expected = lineClasses();
+    cleanup();
+
+    resetStores([makeNode('a'), makeNode('b')]);
+    render(<CognitiveUniverse3D />);
+    expect(lineClasses()).toBe(expected);
+    cleanup();
+
+    resetStores([makeNode('a'), makeNode('b')]);
+    render(<Mind3DWorkspace onOpen2D={() => undefined} onOpenCompanion={() => undefined} />);
+    expect(lineClasses()).toBe(expected);
   });
 
   it('does not leak protected wording into the 2D map', () => {

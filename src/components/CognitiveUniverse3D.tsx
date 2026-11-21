@@ -5,10 +5,12 @@ import { useMindStore } from '../store/mindStore';
 import { useConversationStore } from '../store/conversationStore';
 import { useUiStore } from '../store/uiStore';
 import {
-  cameraPreset, displayLabel, explainRelationship, filterGraphFor3D,
-  layout3D, nodePrivacy, type CameraPreset, type Point3,
+  EDGE_VISUAL_COLORS, cameraPreset, displayLabel, edgeVisualState,
+  explainRelationship, filterGraphFor3D, layout3D, nodePrivacy,
+  type CameraPreset, type Point3,
 } from '../lib/mind3d';
 import type { MindNode } from '../types/mind';
+import EdgeLegend from './EdgeLegend';
 import RelationshipReviewCard from './RelationshipReviewCard';
 import type { Group as ThreeGroup, Mesh as ThreeMesh } from 'three';
 
@@ -167,14 +169,21 @@ export default function CognitiveUniverse3D() {
               new THREE.Vector3(from.x, from.y, from.z), mid, new THREE.Vector3(to.x, to.y, to.z),
             );
             const geometry = new THREE.BufferGeometry().setFromPoints(curve.getPoints(24));
-            const suggested = edge.data?.review === 'suggested';
-            const structural = edge.data?.structural === true;
-            const material = suggested || structural
-              ? new THREE.LineDashedMaterial({ color: suggested ? 0xf5b94c : 0x4c617c, dashSize: 0.28, gapSize: 0.2, transparent: true, opacity: 0.72 })
-              : new THREE.LineBasicMaterial({ color: 0x78cbd5, transparent: true, opacity: 0.45 });
+            const state = edgeVisualState(edge);
+            const color = Number.parseInt(EDGE_VISUAL_COLORS[state].slice(1), 16);
+            const dashed = state !== 'confirmed';
+            const material = dashed
+              ? new THREE.LineDashedMaterial({
+                color,
+                dashSize: state === 'suggested' ? 0.28 : 0.12,
+                gapSize: state === 'suggested' ? 0.2 : 0.16,
+                transparent: true,
+                opacity: state === 'suggested' ? 0.72 : 0.55,
+              })
+              : new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.45 });
             const line = new THREE.Line(geometry, material);
-            if (suggested || structural) line.computeLineDistances();
-            line.userData.signalBearing = !suggested && !structural && edge.data?.signal !== false;
+            if (dashed) line.computeLineDistances();
+            line.userData.signalBearing = state === 'confirmed';
             edgeGroup.add(line);
             disposable.push(geometry, material);
           }
@@ -318,8 +327,7 @@ export default function CognitiveUniverse3D() {
         </div>
 
         <div className="universe-legend">
-          <span><i className="solid" /> Confirmed / signal-bearing</span>
-          <span><i className="dashed" /> Suggested or structural (never propagates)</span>
+          <EdgeLegend />
           <span><i className="protected" /> Protected entry</span>
           <span>3D position is independent from 2D position</span>
         </div>

@@ -10,6 +10,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { MindNodeKind } from '@shared/domain';
 import type { MindEdge, MindNode } from '../../types/mind';
 import { getMindNodeColor } from '../../types/mind';
+import { EDGE_VISUAL_COLORS, type EdgeVisualState } from '../../lib/mind3d';
 import type { Vec3Tuple } from '../../utils/mind3dLayout';
 
 export type Mind3DMode = 'mind' | 'brain' | 'neuron';
@@ -53,7 +54,7 @@ export interface SceneEdge {
   active: boolean;
   selected: boolean;
   dimmed: boolean;
-  speculative: boolean;
+  visualState: EdgeVisualState;
   running: boolean;
   onSelect: (edge: MindEdge) => void;
 }
@@ -318,7 +319,7 @@ function NeuronNode({ node, position, masked, selected, dimmed, expanded, animat
   );
 }
 
-function SynapseLink({ edge, source, target, active, selected, dimmed, speculative, running, onSelect }: SceneEdge) {
+function SynapseLink({ edge, source, target, active, selected, dimmed, visualState, running, onSelect }: SceneEdge) {
   const particle = useRef<Mesh>(null);
   const curve = useMemo(() => {
     const a = new Vector3(...source);
@@ -328,8 +329,9 @@ function SynapseLink({ edge, source, target, active, selected, dimmed, speculati
     return new CubicBezierCurve3(a, a.clone().lerp(midpoint, 0.6).add(lift), b.clone().lerp(midpoint, 0.6).add(lift), b);
   }, [source, target]);
   const weight = Math.max(0.12, Math.min(1, edge.data?.weight ?? 0.55));
-  const color = speculative ? '#e0a56a' : selected ? '#f2ffff' : active ? '#a5f3fc' : '#22d3ee';
-  const opacity = dimmed ? 0.055 : selected ? 0.98 : active ? 0.94 : (speculative ? 0.42 : 0.45 + weight * 0.25);
+  const dashed = visualState !== 'confirmed';
+  const color = dashed ? EDGE_VISUAL_COLORS[visualState] : selected ? '#f2ffff' : active ? '#a5f3fc' : EDGE_VISUAL_COLORS.confirmed;
+  const opacity = dimmed ? 0.055 : selected ? 0.98 : active ? 0.94 : (dashed ? 0.55 : 0.45 + weight * 0.25);
   const segments = useMemo(() => Array.from({ length: 9 }, (_, index) => curve.getPointAt((index + 0.5) / 9)), [curve]);
   useFrame((state) => {
     if (!particle.current || !running || (!active && !selected)) return;
@@ -338,7 +340,7 @@ function SynapseLink({ edge, source, target, active, selected, dimmed, speculati
   });
   return (
     <group onClick={(event) => { event.stopPropagation(); onSelect(edge); }}>
-      {speculative ? segments.map((point, index) => (
+      {dashed ? segments.map((point, index) => (
         <mesh key={index} position={point}>
           <sphereGeometry args={[selected ? 0.024 : 0.016, 8, 8]} />
           <meshBasicMaterial color={color} transparent opacity={opacity} depthWrite={false} toneMapped={false} />

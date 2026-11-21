@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { GRAPH_VIEWS } from '@shared/domain';
 import { dimensionMeta } from '@shared/dimensions';
+import EdgeLegend from './EdgeLegend';
 import MindNeuronNode from './MindNeuronNode';
 import NeuralEdge from './NeuralEdge';
 import Palette from './Palette';
@@ -292,8 +293,9 @@ function MindWorkspace({ onFitRef }: MindWorkspaceProps) {
 
         <div className="canvas-legend">
           {['emotion', 'thought', 'pattern', 'memory', 'need', 'behavior'].map((kind) => (
-            <span key={kind}><i style={{ background: NODE_META[kind as MindNodeKind].color }} /> {NODE_META[kind as MindNodeKind].label}</span>
+            <span key={kind}><i className="node-dot" style={{ background: NODE_META[kind as MindNodeKind].color }} /> {NODE_META[kind as MindNodeKind].label}</span>
           ))}
+          <EdgeLegend compact />
           <button onClick={() => setSimulationRunning(!simulationRunning)}>{simulationRunning ? 'Pause signals' : 'Run signals'}</button>
         </div>
 
