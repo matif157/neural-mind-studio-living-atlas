@@ -1,8 +1,8 @@
 # Unified App Plan — Neural Mind Studio / Living Mind Atlas
 
-Date: 2026-11-21  
+Date: 2026-11-22  
 Branch: `integration/app44-v3`  
-Status: Phase 0 (unification) complete and verified; Phase 1 started.
+Status: Phase 0 (unification) and Phase 1 complete and verified.
 
 ## 1. Why this plan exists
 
@@ -23,7 +23,7 @@ The live Base44 source is paywalled (0 credits, "Code editing is only available 
 | Schema compatibility | Node/edge schemas accept both `privacy`/`review` and `sensitivity`/`approval` families; v1/v2 exports still validate. |
 | Suggestion safety | New AI edges are `review: 'suggested'`, `signal: false`, `approval: 'pending'`; structural wires never propagate signal. |
 | Two 3D presentations kept | `Mind3DWorkspace` default, header orbit button toggles to `CognitiveUniverse3D`; `BrainAnatomy3D` modal preserved. |
-| Verification | Typecheck + **103 tests across 8 files** + production build pass. See `docs/TEST_REPORT.md`. |
+| Verification | Typecheck + **112 tests across 8 files** + production build pass. See `docs/TEST_REPORT.md`. |
 
 ## 3. Settled decisions (do not re-litigate silently)
 
@@ -49,22 +49,22 @@ src/
   store/             one graph store + UI, conversation and import stores
   utils/             shared privacy gates and project-file portability
 public/models/       conceptual-brain.glb and brain/anatomical-brain.glb
-tests/               102 tests covering API, safety, import, vocabulary and rendered UI
+tests/               112 tests covering API, safety, import, vocabulary, schemas and rendered UI
 ```
 
 The user journey is: record or import material in the person's own words → organise it under one of ten lenses → explore it in 2D or either 3D view → review offline relationship questions → export or delete everything. AI never writes silently into the graph.
 
-## 5. Phase 1 — next work (started)
+## 5. Phase 1 — complete
 
-Ordered by user-visible value and safety risk. Each item should land with tests.
+Ordered by user-visible value and safety risk. Every item landed with tests and a browser pass where a UI change was involved.
 
-1. **Unify the two privacy controls.** The Inspector currently exposes both a storage/sharing `privacy` boundary and a 3D `sensitivity` level. Consolidate the UI into one clear control with a documented mapping, while keeping both stored fields for export compatibility. **Started:** the accessible 3D universe now honours `sensitivity: 'sensitive' | 'restricted'` in addition to `privacy` (`src/lib/mind3d.ts`), closing a leak where imported restricted records stayed visible. A regression test covers it. **Remaining:** consolidate the Inspector's two dropdowns and settle the meaning of `sensitivity: 'private'` across both 3D views.
-2. **Make discovery review complete.** Wire source/target/type/supporting-evidence/evidence-class/explanation/status into one review card that is shared by the 2D canvas, `Mind3DWorkspace` and the lighter universe, so a suggestion looks and behaves identically everywhere.
-3. **Confirm vs speculative visual parity.** Apply the same solid/dashed styling and legend to confirmed, suggested and structural edges in both 3D views and the 2D canvas.
-4. **Timeline-first navigation.** Promote the stated-era timeline into a persistent side rail so records can be reached without first opening a node, keeping undated items visibly separate.
-5. **Bundle and asset budget.** Code-split the 3D components (`three` is currently statically imported across views) and lazy-load the two GLB assets. Target a main bundle under 500 kB without changing behaviour.
-6. **Dependency hygiene.** Address the `zod@3.25.76` advisory via a planned Zod 4 migration with a full schema re-verification; do not apply a breaking upgrade ad hoc.
-7. **Browser re-verification.** Repeat the manual 3D, privacy and import passes on the unified build and record results in `docs/TEST_REPORT.md`.
+1. **Unify the two privacy controls — done.** The Inspector now presents one boundary choice. `effectivePrivacy()` resolves the legacy `privacy` and `sensitivity` fields with the stricter level winning, `privacyPatch()` writes both for export compatibility, and `PrivacyView.revealRestricted` remains the only 2D path that can show restricted records. Restricted records still never enter either 3D view, search or relationship filtering.
+2. **Make discovery review complete — done.** `RelationshipReviewCard` is shared by the 2D canvas, `Mind3DWorkspace`, the lighter universe and the Inspector. It shows source, destination, type, supporting information, evidence class, explanation and confirmation status in the same form everywhere; AI proposals remain pending until the user approves, edits or rejects them.
+3. **Confirm vs speculative visual parity — done.** `edgeVisualState()` and `isSpeculativeEdge()` provide one canonical classification. Confirmed/signal-bearing links are solid, suggested links dashed, and structural or excluded links dotted. The same `EdgeLegend` is rendered in 2D and both 3D presentations. Structural and non-signalling edges are excluded from propagation, analysis, loops, hubs and AI context.
+4. **Timeline-first navigation — done.** A persistent, privacy-aware `TimelineRail` keeps user-stated eras reachable from every workspace, with undated records visibly separate and sensitive wording masked unless revealed. Earlier records are never presented as causes.
+5. **Bundle and asset budget — done.** Workspaces, both 3D views, the GLB loader and validation are lazy-loaded. The main entry chunk is **480.08 kB / 155.01 kB gzip**, the shared Three.js vendor chunk is **737.16 kB / 186.99 kB gzip**, and the validation chunk is **90.04 kB / 25.48 kB gzip**. The entry target of under 500 kB is met; only the intentional Three.js vendor chunk remains above the advisory threshold.
+6. **Dependency hygiene — done.** `zod@4.6.7` is in use. Record schemas declare key and value types, custom refinements use the Zod 4 string issue code, and regressions cover duplicate edge IDs and typed model-provider overrides. `npm audit` now reports **0 vulnerabilities**; the previous Zod advisory is resolved.
+7. **Browser re-verification — done.** The rebuilt production app was exercised on the single-origin offline server. 2D, full 3D, lighter universe, privacy toggles, timeline, private import, source-to-node trail, inspector evidence and JSON export were checked with no console errors. Full results are in `docs/TEST_REPORT.md`.
 
 ## 6. Guardrails for every subsequent change
 
