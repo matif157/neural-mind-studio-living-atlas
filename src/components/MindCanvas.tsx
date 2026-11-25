@@ -10,14 +10,17 @@ import {
 } from 'lucide-react';
 import { GRAPH_VIEWS } from '@shared/domain';
 import { dimensionMeta } from '@shared/dimensions';
+import EdgeLegend from './EdgeLegend';
 import MindNeuronNode from './MindNeuronNode';
 import NeuralEdge from './NeuralEdge';
 import Palette from './Palette';
 import Inspector from './Inspector';
 import { useMindStore } from '../store/mindStore';
+import { useConversationStore } from '../store/conversationStore';
 import { useUiStore } from '../store/uiStore';
+import { isNodeDisplayable, isNodeMasked, type PrivacyView } from '../utils/privacy';
 import { scenarios } from '../data/scenarios';
-import { displayLabel, isSignalEdge, nodeDimension, nodePrivacy } from '../lib/mind3d';
+import { isSignalEdge, nodeDimension } from '../lib/mind3d';
 import { getMindNodeColor, NODE_META, type MindEdge, type MindNode, type MindNodeKind } from '../types/mind';
 
 const nodeTypes = { mind: MindNeuronNode };
@@ -40,6 +43,9 @@ function MindWorkspace({ onFitRef }: MindWorkspaceProps) {
   const setSimulationRunning = useMindStore((state) => state.setSimulationRunning);
   const simulationRunning = useMindStore((state) => state.simulationRunning);
   const activeScenario = useMindStore((state) => state.activeScenario);
+  const sensitiveContentVisible = useMindStore((state) => state.sensitiveContentVisible);
+  const hiddenKinds = useMindStore((state) => state.hiddenKinds);
+  const privateMode = useConversationStore((state) => state.sensitivePrivateMode);
   const groupSelection = useMindStore((state) => state.groupSelection);
   const ungroupSelection = useMindStore((state) => state.ungroupSelection);
   const toggleLock = useMindStore((state) => state.toggleLock);
@@ -51,6 +57,45 @@ function MindWorkspace({ onFitRef }: MindWorkspaceProps) {
   const [tracedIds, setTracedIds] = useState<Set<string> | null>(null);
   const scenario = scenarios.find((item) => item.id === activeScenario);
   const view = GRAPH_VIEWS.find((item) => item.id === graphView) ?? GRAPH_VIEWS[0];
+  const privacyView = useMemo<PrivacyView>(() => ({
+    // Either the stored reveal flag or the session secure-view toggle may expose
+    // protected wording. Both vocabularies are resolved by effectivePrivacy.
+    revealSensitive: sensitiveContentVisible || secureView,
+    // Only the 2D map can reveal a restricted record for a review session.
+    revealRestricted: secureView,
+    privateMode,
+    hiddenKinds,
+  }), [sensitiveContentVisible, secureView, privateMode, hiddenKinds]);
+
+  // One shared visibility rule: restricted/hidden/private-mode records are removed entirely.
+  // Masked records remain as placeholders so the shape of the map survives, but no wording leaks.
+  const displayableNodes = useMemo(
+    () => nodes.filter((node) => isNodeDisplayable(node, privacyView)),
+    [nodes, privacyView],
+  );
+  const maskedIds = useMemo(
+    () => new Set(displayableNodes.filter((node) => isNodeMasked(node, privacyView)).map((node) => node.id)),
+    [displayableNodes, privacyView],
+  );
+  const privacyEdges = useMemo(
+    () => edges.filter((edge) => !maskedIds.has(edge.source) && !maskedIds.has(edge.target)),
+    [edges, maskedIds],
+  );
+  const maskNode = useCallback((node: MindNode): MindNode => maskedIds.has(node.id) ? ({
+    ...node,
+    data: {
+      ...node.data,
+      label: 'Private concept',
+      description: '',
+      innerVoice: '',
+      balancedVoice: '',
+      originalText: '',
+      context: '',
+      tags: [],
+      evidence: [],
+      intensity: null,
+    },
+  }) : node, [maskedIds]);
 
   const onConnect = useCallback((connection: Connection) => addConnection(connection), [addConnection]);
   const addAtCenter = useCallback((kind: MindNodeKind, customKindId?: string) => {
@@ -64,103 +109,100 @@ function MindWorkspace({ onFitRef }: MindWorkspaceProps) {
   const fit = useCallback(() => reactFlow.fitView({ padding: 0.22, duration: 500 }), [reactFlow]);
   useEffect(() => { onFitRef(fit); }, [fit, onFitRef]);
 
-  const collapsedParents = useMemo(() => new Set(nodes.filter((node) => node.data.collapsed).map((node) => node.id)), [nodes]);
+  const collapsedParents = useMemo(() => new Set(displayableNodes.filter((node) => node.data.collapsed).map((node) => node.id)), [displayableNodes]);
   const viewIds = useMemo(() => {
     if (!view.kinds.length) return null;
     const ids = new Set<string>();
-    for (const node of nodes) if (view.kinds.includes(node.data.kind)) ids.add(node.id);
-    for (const edge of edges) {
+    for (const node of displayableNodes) if (view.kinds.includes(node.data.kind)) ids.add(node.id);
+    for (const edge of privacyEdges) {
       if (ids.has(edge.source)) ids.add(edge.target);
       if (ids.has(edge.target)) ids.add(edge.source);
     }
     return ids;
-  }, [view.kinds, nodes, edges]);
+  }, [view.kinds, displayableNodes, privacyEdges]);
 
+  // Search only over readable wording: masked content must not be discoverable by query.
   const matches = useMemo(() => {
     const term = query.trim().toLowerCase();
     if (!term) return [];
-    return nodes.filter((node) => {
-      if (!secureView && (nodePrivacy(node) === 'sensitive' || nodePrivacy(node) === 'restricted')) return false;
-      return [displayLabel(node, secureView), node.data.description, node.data.originalText ?? '', node.data.kind, ...node.data.tags].join(' ').toLowerCase().includes(term);
-    });
-  }, [nodes, query, secureView]);
+    return displayableNodes.filter((node) => !maskedIds.has(node.id) && [
+      node.data.label, node.data.description, node.data.originalText ?? '', node.data.kind, ...node.data.tags,
+    ].join(' ').toLowerCase().includes(term));
+  }, [displayableNodes, maskedIds, query]);
   const matchIds = useMemo(() => new Set(matches.map((node) => node.id)), [matches]);
   const selectedIds = useMemo(() => {
-    const ids = new Set(nodes.filter((node) => node.selected).map((node) => node.id));
-    if (!ids.size && selectedNodeId) ids.add(selectedNodeId);
+    const ids = new Set(displayableNodes.filter((node) => node.selected && !maskedIds.has(node.id)).map((node) => node.id));
+    if (!ids.size && selectedNodeId && !maskedIds.has(selectedNodeId)) ids.add(selectedNodeId);
     return ids;
-  }, [nodes, selectedNodeId]);
+  }, [displayableNodes, maskedIds, selectedNodeId]);
   const relatedIds = useMemo(() => {
     const ids = new Set(selectedIds);
-    for (const edge of edges) {
+    for (const edge of privacyEdges) {
       if (!isSignalEdge(edge)) continue;
       if (selectedIds.has(edge.source)) ids.add(edge.target);
       if (selectedIds.has(edge.target)) ids.add(edge.source);
     }
     return ids;
-  }, [edges, selectedIds]);
+  }, [privacyEdges, selectedIds]);
 
-  const visibleNodes = useMemo(() => nodes.filter((node) => {
+  const visibleNodes = useMemo(() => displayableNodes.filter((node) => {
     if (node.data.parentId && collapsedParents.has(node.data.parentId)) return false;
     if (viewIds && !viewIds.has(node.id)) return false;
     if (kindFilter.length && !kindFilter.includes(node.data.kind)) return false;
     if (provenanceFilter.length && !provenanceFilter.includes(node.data.provenance)) return false;
-    if (!secureView && (nodePrivacy(node) === 'sensitive' || nodePrivacy(node) === 'restricted')) return false;
     if (dimensionFilter !== 'all' && nodeDimension(node) !== dimensionFilter) return false;
     if (query.trim() && !matchIds.has(node.id)) return true; // keep structure, dim non-matches
     return true;
   }).map((node) => {
+    const safe = maskNode(node);
     const searchClass = query.trim() ? (matchIds.has(node.id) ? 'search-match' : 'search-dimmed') : '';
     const focusClass = selectedIds.size ? (relatedIds.has(node.id) ? 'selected-focus' : 'selected-dimmed') : '';
     const traceClass = tracedIds && !tracedIds.has(node.id) ? 'trace-dimmed' : '';
-    return {
-      ...node,
-      data: { ...node.data, label: displayLabel(node, secureView) },
-      className: [searchClass, focusClass, traceClass].filter(Boolean).join(' '),
-    };
-  }), [nodes, collapsedParents, viewIds, kindFilter, provenanceFilter, dimensionFilter, secureView, query, matchIds, selectedIds, relatedIds, tracedIds]);
+    return { ...safe, className: [searchClass, focusClass, traceClass].filter(Boolean).join(' ') };
+  }), [displayableNodes, collapsedParents, viewIds, kindFilter, provenanceFilter, dimensionFilter, maskNode, query, matchIds, selectedIds, relatedIds, tracedIds]);
 
   const visibleIds = useMemo(() => new Set(visibleNodes.map((node) => node.id)), [visibleNodes]);
-  const visibleEdges = useMemo(() => edges.filter((edge) => visibleIds.has(edge.source) && visibleIds.has(edge.target)).map((edge) => {
+  const visibleEdges = useMemo(() => privacyEdges.filter((edge) => visibleIds.has(edge.source) && visibleIds.has(edge.target)).map((edge) => {
     const isInScenario = !scenario || (scenario.nodeIds.includes(edge.source) && scenario.nodeIds.includes(edge.target));
     const isSearchPath = !query.trim() || (matchIds.has(edge.source) && matchIds.has(edge.target));
     const isRelated = !selectedIds.size || selectedIds.has(edge.source) || selectedIds.has(edge.target);
     const isTraced = !tracedIds || (tracedIds.has(edge.source) && tracedIds.has(edge.target));
     const opacity = isInScenario && isSearchPath && isRelated && isTraced ? 1 : 0.12;
     return { ...edge, style: { ...(edge.style ?? {}), opacity, stroke: isRelated && selectedIds.size ? '#78cbd5' : edge.style?.stroke } };
-  }), [edges, visibleIds, scenario, query, matchIds, selectedIds, tracedIds]);
+  }), [privacyEdges, visibleIds, scenario, query, matchIds, selectedIds, tracedIds]);
 
-  const selectedNode = nodes.find((node) => node.id === selectedNodeId || node.selected) ?? null;
-  const selectedEdge = edges.find((edge) => edge.selected) ?? null;
-  const contextNode = contextMenu?.nodeId ? nodes.find((node) => node.id === contextMenu.nodeId) : null;
+  const selectedNode = displayableNodes.find((node) => (node.id === selectedNodeId || node.selected) && !maskedIds.has(node.id)) ?? null;
+  const selectedEdge = privacyEdges.find((edge) => edge.selected) ?? null;
+  const contextNode = contextMenu?.nodeId ? visibleNodes.find((node) => node.id === contextMenu.nodeId) : null;
 
   const focusNode = useCallback((id: string) => {
-    const node = nodes.find((item) => item.id === id);
+    const node = displayableNodes.find((item) => item.id === id && !maskedIds.has(id));
     if (node) reactFlow.setCenter(node.position.x + 120, node.position.y + 70, { zoom: 1.15, duration: 520 });
-  }, [nodes, reactFlow]);
+  }, [displayableNodes, maskedIds, reactFlow]);
 
   const traceFrom = useCallback((id: string) => {
     const ids = new Set([id]);
     for (let depth = 0; depth < 2; depth += 1) {
-      for (const edge of edges) {
+      for (const edge of privacyEdges) {
         if (!isSignalEdge(edge)) continue;
         if (ids.has(edge.source)) ids.add(edge.target);
         if (ids.has(edge.target)) ids.add(edge.source);
       }
     }
     setTracedIds(ids);
-  }, [edges]);
+  }, [privacyEdges]);
 
   const runSearch = useCallback(() => {
     const first = matches[0];
     if (first) focusNode(first.id);
   }, [matches, focusNode]);
 
-  const selectOnly = (id: string) => setNodes(nodes.map((node) => ({ ...node, selected: node.id === id })));
+  const selectOnly = (id: string) => setNodes(displayableNodes.map((node) => ({ ...node, selected: node.id === id })));
 
   const menuAction = (action: string) => {
     if (!contextMenu?.nodeId) { closeContextMenu(); return; }
     const id = contextMenu.nodeId;
+    if (maskedIds.has(id)) { closeContextMenu(); return; }
     switch (action) {
       case 'focus': focusNode(id); break;
       case 'trace': traceFrom(id); break;
@@ -183,7 +225,7 @@ function MindWorkspace({ onFitRef }: MindWorkspaceProps) {
         <div className="canvas-topline">
           <div><span className="live-dot" /> {view.label.toUpperCase()} <span className="canvas-divider">/</span> EDIT MODE</div>
           <div className="canvas-topline-right">
-            <span>{visibleNodes.length}/{nodes.length} nodes</span><i /> <span>{visibleEdges.length} links</span>
+            <span>{visibleNodes.length}/{displayableNodes.length} nodes</span><i /> <span>{visibleEdges.length} links</span>{privateMode && <span className="canvas-privacy-badge">PRIVATE MODE</span>}
             <div className="canvas-search">
               <Search size={12} />
               <input aria-label="Search mind map" placeholder="Find a thought…" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') runSearch(); }} />
@@ -218,7 +260,7 @@ function MindWorkspace({ onFitRef }: MindWorkspaceProps) {
           onConnect={onConnect}
           onNodeDragStart={() => captureHistory('Node moved', 'A reversible position change was recorded.')}
           onBeforeDelete={async () => { captureHistory('Delete requested'); return true; }}
-          onNodeClick={(_event, node) => setSelectedNode(node.id)}
+          onNodeClick={(_event, node) => setSelectedNode(maskedIds.has(node.id) ? null : node.id)}
           onPaneClick={() => { closeContextMenu(); setSelectedNode(null); }}
           onNodeContextMenu={(event, node) => {
             event.preventDefault();
@@ -251,8 +293,9 @@ function MindWorkspace({ onFitRef }: MindWorkspaceProps) {
 
         <div className="canvas-legend">
           {['emotion', 'thought', 'pattern', 'memory', 'need', 'behavior'].map((kind) => (
-            <span key={kind}><i style={{ background: NODE_META[kind as MindNodeKind].color }} /> {NODE_META[kind as MindNodeKind].label}</span>
+            <span key={kind}><i className="node-dot" style={{ background: NODE_META[kind as MindNodeKind].color }} /> {NODE_META[kind as MindNodeKind].label}</span>
           ))}
+          <EdgeLegend compact />
           <button onClick={() => setSimulationRunning(!simulationRunning)}>{simulationRunning ? 'Pause signals' : 'Run signals'}</button>
         </div>
 

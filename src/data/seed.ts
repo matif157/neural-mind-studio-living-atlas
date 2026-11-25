@@ -21,6 +21,7 @@ const node = (
     createdAt: 'seed', updatedAt: 'seed', isCore: false, provenance: 'seed', status: 'active',
     confidence: null, evidence: [], collapsed: false, locked: false, isGroup: false,
     privacy: 'private', safetySignal: false,
+    sensitivity: 'standard', spatial: null,
   },
 });
 
@@ -32,7 +33,8 @@ const edge = (id: string, source: string, target: string, relation: MindRelation
   animated: true,
   data: {
     relation, weight, note, signal: true, direction: 'forward', provenance: 'seed',
-    confidence: null, createdAt: 'seed', structural: false, review: 'confirmed', evidence: [],
+    confidence: null, createdAt: 'seed', structural: false, review: 'confirmed',
+    evidence: [], approval: 'approved',
   },
 });
 

@@ -1,13 +1,19 @@
-import { mindEdgeSchema, mindNodeSchema, projectFileSchema, type ProjectFile } from '@shared/schemas';
+import {
+  mindEdgeSchema, mindNodeSchema, projectFileSchema,
+  type ConnectionSuggestion, type ProjectFile,
+} from '@shared/schemas';
 import { SCHEMA_VERSION } from '@shared/domain';
 import type { MindEdge, MindNode } from '../types/mind';
 
 export type { ProjectFile };
 
+type ProjectMetaInput = Omit<NonNullable<ProjectFile['meta']>, 'suggestions'>;
+
 export function createProjectFile(
   nodes: MindNode[],
   edges: MindEdge[],
-  meta?: ProjectFile['meta'],
+  meta?: ProjectMetaInput,
+  suggestions: ConnectionSuggestion[] = [],
 ): ProjectFile {
   return {
     app: 'neural-mind-studio',
@@ -15,7 +21,12 @@ export function createProjectFile(
     exportedAt: new Date().toISOString(),
     nodes: nodes.map((node) => mindNodeSchema.safeParse(node).data ?? (node as ProjectFile['nodes'][number])),
     edges: edges.map((edge) => mindEdgeSchema.safeParse(edge).data ?? (edge as ProjectFile['edges'][number])),
-    meta: meta ? { ...meta, customCategories: meta.customCategories ?? [], customRelations: meta.customRelations ?? [] } : undefined,
+    meta: {
+      ...meta,
+      customCategories: meta?.customCategories ?? [],
+      customRelations: meta?.customRelations ?? [],
+      suggestions,
+    },
   };
 }
 

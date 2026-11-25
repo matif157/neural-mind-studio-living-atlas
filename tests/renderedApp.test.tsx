@@ -5,8 +5,12 @@ import type { MindNodeKind } from '@shared/domain';
 import BrainAnatomy3D from '../src/components/BrainAnatomy3D';
 import CognitiveUniverse3D from '../src/components/CognitiveUniverse3D';
 import Inspector from '../src/components/Inspector';
+import Mind3DWorkspace from '../src/components/Mind3DWorkspace';
 import MindCanvas from '../src/components/MindCanvas';
-import { filterGraphFor3D, isSignalEdge } from '../src/lib/mind3d';
+import TimelineRail from '../src/components/TimelineRail';
+import {
+  edgeVisualState, filterGraphFor3D, isSignalEdge, isSpeculativeEdge,
+} from '../src/lib/mind3d';
 import { useMindStore } from '../src/store/mindStore';
 import { useUiStore } from '../src/store/uiStore';
 import type { MindEdge, MindEdgeData, MindNode, MindNodeData } from '../src/types/mind';
@@ -40,6 +44,8 @@ function makeNode(
       isGroup: false,
       privacy: 'private',
       safetySignal: false,
+      sensitivity: 'standard',
+      spatial: null,
       ...patch,
     },
   };
@@ -62,6 +68,7 @@ function makeEdge(id: string, source: string, target: string, patch: Partial<Min
       structural: false,
       review: 'confirmed',
       evidence: [],
+      approval: 'approved',
       ...patch,
     },
   };
@@ -138,7 +145,7 @@ describe('rendered personal mind atlas', () => {
     expect(screen.getByTestId('cognitive-universe')).toBeTruthy();
     for (const label of [
       'Timeline', 'Memories', 'Thoughts', 'Emotions', 'Body',
-      'Behaviour', 'Relationships', 'Imagination', 'Strengths', 'Future',
+      'Behaviour', 'Relationships', 'Imagination', 'Strengths', 'Decisions',
     ]) {
       expect(screen.getByRole('button', { name: label })).toBeTruthy();
     }
@@ -171,6 +178,22 @@ describe('rendered personal mind atlas', () => {
     expect(graph.edges).toHaveLength(0);
   });
 
+  it('honours sensitivity-restricted records in the accessible 3D universe', () => {
+    // Imported records can carry sensitivity: 'restricted' while privacy stays
+    // at the store default. Both vocabularies must gate ordinary exploration.
+    const nodes = [
+      makeNode('safe', 'thought', 'Visible thought'),
+      makeNode('imported', 'memory', 'RESTRICTED_IMPORT_WORDING', { sensitivity: 'restricted' }),
+    ];
+    resetStores(nodes);
+    render(<CognitiveUniverse3D />);
+    expect(document.body.textContent).not.toContain('RESTRICTED_IMPORT_WORDING');
+    const graph = filterGraphFor3D(nodes, [], {});
+    expect(graph.nodes.map((node) => node.id)).toEqual(['safe']);
+    fireEvent.click(screen.getByRole('button', { name: 'Reveal protected entries' }));
+    expect(screen.getByRole('button', { name: 'RESTRICTED_IMPORT_WORDING' })).toBeTruthy();
+  });
+
   it('reveals protected entries only when secure view is enabled', () => {
     resetStores([makeNode('secret', 'emotion', 'PRIVATE_WORDING', { privacy: 'restricted' })]);
     render(<CognitiveUniverse3D />);
@@ -198,7 +221,7 @@ describe('rendered personal mind atlas', () => {
     ]);
     render(<CognitiveUniverse3D />);
     fireEvent.click(screen.getByRole('button', { name: 'Emotions' }));
-    expect(useUiStore.getState().dimensionFilter).toBe('emotional-landscape');
+    expect(useUiStore.getState().dimensionFilter).toBe('emotion');
     expect(screen.getByRole('button', { name: 'Only emotion' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Only body' })).toBeNull();
   });
@@ -243,6 +266,32 @@ describe('rendered personal mind atlas', () => {
     expect(card.textContent).toContain('suggested');
   });
 
+  it('uses the same reviewable relationship card in the Inspector', () => {
+    const a = makeNode('a', 'thought', 'Trigger thought');
+    const b = makeNode('b', 'emotion', 'Result feeling');
+    resetStores(
+      [a, b],
+      [makeEdge('e1', 'a', 'b', {
+        relation: 'may indicate',
+        explanation: 'Keyword overlap only; review before keeping.',
+        evidence: [{ eventId: 'event-1', excerpt: 'exact supporting words', date: '2026-11-20' }],
+        provenance: 'ai-suggested',
+        review: 'suggested',
+      })],
+    );
+    useUiStore.setState({ selectedNodeId: 'a' });
+    render(<Inspector selectedNode={a} selectedEdge={null} />);
+    const card = document.querySelector('.relationship-card') as HTMLElement;
+    expect(card).toBeTruthy();
+    expect(card.textContent).toContain('Trigger thought');
+    expect(card.textContent).toContain('Result feeling');
+    expect(card.textContent).toContain('may indicate');
+    expect(card.textContent).toContain('exact supporting words');
+    expect(card.textContent).toContain('Evidence class: ai-suggested');
+    expect(card.textContent).toContain('suggested');
+    expect(card.textContent).toContain('excluded from signal');
+  });
+
   it('keeps suggested and structural relationships out of signal propagation', () => {
     const nodes = [makeNode('a'), makeNode('b'), makeNode('c')];
     const suggested = makeEdge('s', 'a', 'b', { review: 'suggested' });
@@ -260,6 +309,89 @@ describe('rendered personal mind atlas', () => {
     expect(screen.getByText(/excluded from signal/)).toBeTruthy();
   });
 
+  it('classifies every compatibility flag with one visual rule', () => {
+    const base = makeEdge('base', 'a', 'b');
+    const legacy = { ...base, data: { ...base.data!, approval: undefined } } as unknown as MindEdge;
+    const proposed = makeEdge('proposed', 'a', 'b', { review: 'suggested' });
+    const awaiting = makeEdge('awaiting', 'a', 'b', { approval: 'pending' });
+    const aiOrigin = makeEdge('ai', 'a', 'b', { provenance: 'ai-suggested' });
+    const hypothesis = makeEdge('hypothesis', 'a', 'b', { evidenceClass: 'system-hypothesis' });
+    const structural = makeEdge('structural', 'a', 'b', { structural: true });
+    const rejected = makeEdge('rejected', 'a', 'b', { review: 'rejected' });
+    const muted = makeEdge('muted', 'a', 'b', { signal: false });
+
+    expect(edgeVisualState(base)).toBe('confirmed');
+    expect(edgeVisualState(legacy)).toBe('confirmed');
+    for (const edge of [proposed, awaiting, aiOrigin, hypothesis]) {
+      expect(edgeVisualState(edge)).toBe('suggested');
+      expect(isSpeculativeEdge(edge)).toBe(true);
+      expect(isSignalEdge(edge)).toBe(false);
+    }
+    expect(edgeVisualState(structural)).toBe('structural');
+    expect(isSpeculativeEdge(structural)).toBe(false);
+    expect(edgeVisualState(rejected)).toBe('excluded');
+    expect(edgeVisualState(muted)).toBe('excluded');
+
+    const graph = filterGraphFor3D(
+      [makeNode('a'), makeNode('b')],
+      [base, proposed, awaiting, aiOrigin, hypothesis, structural, rejected, muted],
+      {},
+    );
+    expect(graph.signalEdges.map((edge) => edge.id)).toEqual(['base']);
+    expect(graph.suggestedEdges.map((edge) => edge.id)).toEqual(['proposed', 'awaiting', 'ai', 'hypothesis']);
+  });
+
+  it('keeps stated eras reachable from the persistent timeline rail', () => {
+    const past = makeNode('past', 'memory', 'PAST_WORDING', { era: 'childhood', timePeriod: 'early school' });
+    const undated = makeNode('undated', 'thought', 'Undated thought');
+    const sensitive = makeNode('secret', 'emotion', 'RAIL_SECRET', { privacy: 'sensitive', era: 'present' });
+    const restricted = makeNode('restricted', 'memory', 'RAIL_RESTRICTED', { privacy: 'restricted', era: 'present' });
+    resetStores([past, undated, sensitive, restricted]);
+
+    render(<TimelineRail open onToggle={() => undefined} />);
+    expect(screen.getByTestId('timeline-rail')).toBeTruthy();
+    expect(screen.getByText('childhood')).toBeTruthy();
+    const undatedGroup = document.querySelector('.timeline-rail-group.is-undated') as HTMLElement;
+    expect(undatedGroup.textContent).toContain('Undated thought');
+    expect(document.body.textContent).not.toContain('RAIL_RESTRICTED');
+    expect(document.body.textContent).not.toContain('RAIL_SECRET');
+
+    const button = Array.from(document.querySelectorAll('.timeline-rail-group button'))
+      .find((item) => item.textContent?.includes('PAST_WORDING')) as HTMLButtonElement;
+    fireEvent.click(button);
+    expect(useUiStore.getState().selectedNodeId).toBe('past');
+    // A 3D view keeps its presentation; other workspaces open the map.
+    expect(useUiStore.getState().workspace).toBe('universe');
+
+    useUiStore.setState({ workspace: 'journal', graphView: 'whole' });
+    fireEvent.click(button);
+    expect(useUiStore.getState().workspace).toBe('atlas');
+    expect(useUiStore.getState().graphView).toBe('timeline');
+  });
+
+  it('shows the same relationship legend in 2D and both 3D views', () => {
+    const lineClasses = () => Array.from(document.querySelectorAll('[data-testid="relationship-legend"] .edge-line'))
+      .map((node) => node.className).join('|');
+
+    resetStores([makeNode('a'), makeNode('b')]);
+    render(<MindCanvas onFitRef={() => undefined} />);
+    const legend = screen.getByTestId('relationship-legend');
+    for (const label of ['Confirmed', 'Suggested', 'Structural', 'Excluded']) {
+      expect(legend.textContent).toContain(label);
+    }
+    const expected = lineClasses();
+    cleanup();
+
+    resetStores([makeNode('a'), makeNode('b')]);
+    render(<CognitiveUniverse3D />);
+    expect(lineClasses()).toBe(expected);
+    cleanup();
+
+    resetStores([makeNode('a'), makeNode('b')]);
+    render(<Mind3DWorkspace onOpen2D={() => undefined} onOpenCompanion={() => undefined} />);
+    expect(lineClasses()).toBe(expected);
+  });
+
   it('does not leak protected wording into the 2D map', () => {
     resetStores([makeNode('secret', 'emotion', 'PRIVATE_2D_WORDING', { privacy: 'restricted' })]);
     render(<MindCanvas onFitRef={() => undefined} />);
@@ -273,7 +405,7 @@ describe('rendered personal mind atlas', () => {
       makeNode('body', 'body', 'Body signal only'),
       makeNode('emo', 'emotion', 'Emotion only'),
     ]);
-    useUiStore.setState({ dimensionFilter: 'physical-internal' });
+    useUiStore.setState({ dimensionFilter: 'body' });
     render(<MindCanvas onFitRef={() => undefined} />);
     expect(document.body.textContent).toContain('Body signal only');
     expect(document.body.textContent).not.toContain('Emotion only');
@@ -286,7 +418,7 @@ describe('rendered personal mind atlas', () => {
     const inspector = document.querySelector('.inspector-panel') as HTMLElement;
     expect(inspector.textContent).toContain('Node inspector');
     expect((inspector.querySelector('input.field-control') as HTMLInputElement).value).toBe('Two view thought');
-    expect(inspector.textContent).toContain('Personal dimension');
+    expect(inspector.textContent).toContain('Primary dimension');
     expect(inspector.textContent).toContain('Privacy boundary');
   });
 
@@ -297,6 +429,14 @@ describe('rendered personal mind atlas', () => {
     expect(screen.getByTestId('privacy-gate')).toBeTruthy();
     expect(document.body.textContent).not.toContain('SECRET_INSPECTOR');
     expect(screen.getByText('Sensitive entry hidden')).toBeTruthy();
+  });
+
+  it('gates sensitivity-restricted entries in the Inspector even when storage privacy is private', () => {
+    const node = makeNode('s', 'memory', 'RESTRICTED_INSPECTOR', { privacy: 'private', sensitivity: 'restricted' });
+    resetStores([node]);
+    render(<Inspector selectedNode={node} selectedEdge={null} />);
+    expect(screen.getByTestId('privacy-gate')).toBeTruthy();
+    expect(document.body.textContent).not.toContain('RESTRICTED_INSPECTOR');
   });
 
   it('opens secure review from the Inspector privacy gate', () => {

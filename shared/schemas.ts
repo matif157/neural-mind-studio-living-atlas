@@ -1,9 +1,10 @@
 import { z } from 'zod';
 import {
-  AI_PROVIDERS, CERTAINTIES, EDGE_REVIEW_STATUSES, MIND_NODE_KINDS, MIND_RELATIONS,
-  NODE_STATUSES, PRIVACY_LEVELS, PROVENANCE_LABELS, VALENCES,
+  AI_PROVIDERS, CERTAINTIES, CONFIDENCE_BANDS, EDGE_REVIEW_STATUSES,
+  EVIDENCE_CLASSES, MIND_DIMENSION_IDS, MIND_NODE_KINDS, MIND_RELATIONS,
+  NODE_STATUSES, PRIVACY_LEVELS, PROVENANCE_LABELS, SENSITIVITY_LEVELS,
+  SUGGESTION_STATUSES, TEMPORAL_STATUSES, TIMELINE_ERAS, VALENCES,
 } from './domain';
-import { PERSONAL_DIMENSION_IDS } from './dimensions';
 
 /** Versioned, portable graph format. New fields are optional so v1 projects can be migrated. */
 export const evidenceRefSchema = z.object({
@@ -41,13 +42,35 @@ export const mindNodeDataSchema = z.object({
   collapsed: z.boolean().default(false),
   locked: z.boolean().default(false),
   customKind: z.string().max(80).optional(),
-  /** Organisational lens. Defaults are derived from kind; never a clinical or brain-region claim. */
-  dimension: z.enum(PERSONAL_DIMENSION_IDS).optional(),
+  /* ---- Privacy, signal and presentation (2D/3D independent) ---- */
+  /** Storage/sharing boundary. Default is private for new personal material. */
   privacy: z.enum(PRIVACY_LEVELS).default('private'),
+  /** 3D-layer sensitivity classification, falling back to the kind default when absent. */
+  sensitivity: z.enum(SENSITIVITY_LEVELS).default('standard'),
   /** Danger-signal wording is stored verbatim only for safety signalling, never as identity. */
   safetySignal: z.boolean().default(false),
   /** Presentation-only 3D coordinate. Independent of the 2D position unless explicitly synced. */
   pos3: z.object({ x: z.number().finite(), y: z.number().finite(), z: z.number().finite() }).optional(),
+  /** Optional independent 3D presentation position used by the full-bleed 3D workspace. */
+  spatial: z.object({
+    x: z.number().finite(),
+    y: z.number().finite(),
+    z: z.number().finite(),
+  }).nullable().default(null),
+
+  /* ---- Personal-atlas dimensions (all optional: old exports stay valid) ---- */
+  /** Primary dimension used for clustering. Never a clinical category or brain region. */
+  dimension: z.enum(MIND_DIMENSION_IDS).optional(),
+  /** Historical / current / recurring / future / unknown. Never inferred from passage order. */
+  temporalStatus: z.enum(TEMPORAL_STATUSES).optional(),
+  /** Coarse era or timeframe in the user's own words, e.g. "childhood" or "2019". */
+  timePeriod: z.string().max(80).optional(),
+  /** Standardised era bucket used by the timeline workspace. */
+  era: z.enum(TIMELINE_ERAS).optional(),
+  /** Where this statement came from. Only the explicit professional value is a clinical fact. */
+  evidenceClass: z.enum(EVIDENCE_CLASSES).optional(),
+  /** User-facing reason this record was created, kept separate from any system hypothesis. */
+  rationale: z.string().max(1200).optional(),
 });
 
 export const mindNodeSchema = z.object({
@@ -80,6 +103,13 @@ export const mindEdgeDataSchema = z.object({
   /** Suggested relationships remain inert until confirmed, corrected or rejected. */
   review: z.enum(EDGE_REVIEW_STATUSES).default('confirmed'),
   evidence: z.array(evidenceRefSchema).max(50).default([]),
+  /** Discovery suggestions are pending until the user approves, edits or rejects them. */
+  approval: z.enum(SUGGESTION_STATUSES).default('approved'),
+  /** Exploratory / supported / well-supported. Never a risk or severity rating. */
+  confidenceBand: z.enum(CONFIDENCE_BANDS).optional(),
+  evidenceClass: z.enum(EVIDENCE_CLASSES).optional(),
+  /** Identifier of the discovery suggestion that produced this link, when applicable. */
+  suggestionId: z.string().max(120).optional(),
 });
 
 export const mindEdgeSchema = z.object({
@@ -93,6 +123,27 @@ export const mindEdgeSchema = z.object({
   selected: z.boolean().optional(),
   data: mindEdgeDataSchema,
 });
+
+/**
+ * A relationship proposed by the offline discovery engine. It is a question, not a finding:
+ * `status` starts as pending and nothing is written into the graph until the user approves it.
+ */
+export const connectionSuggestionSchema = z.object({
+  id: z.string().min(1),
+  source: z.string().min(1),
+  target: z.string().min(1),
+  relation: z.enum(MIND_RELATIONS),
+  explanation: z.string().max(2000),
+  evidence: z.string().max(2000),
+  evidenceClass: z.enum(EVIDENCE_CLASSES).default('system-hypothesis'),
+  confidenceBand: z.enum(CONFIDENCE_BANDS).default('exploratory'),
+  rationale: z.string().max(1000).default('Structural relationship between concepts you recorded.'),
+  status: z.enum(SUGGESTION_STATUSES).default('pending'),
+  rule: z.string().max(80).default('manual'),
+  createdAt: z.string(),
+  updatedAt: z.string().optional(),
+});
+export type ConnectionSuggestion = z.infer<typeof connectionSuggestionSchema>;
 
 export const projectFileSchema = z.object({
   app: z.literal('neural-mind-studio'),
@@ -116,19 +167,21 @@ export const projectFileSchema = z.object({
       label: z.string().min(1).max(120),
       baseRelation: z.enum(MIND_RELATIONS),
     })).default([]),
+    /** Reviewable connection suggestions. They remain separate from confirmed edges. */
+    suggestions: z.array(connectionSuggestionSchema).max(5000).default([]),
   }).optional(),
 }).superRefine((file, ctx) => {
   const ids = new Set<string>();
   for (const node of file.nodes) {
-    if (ids.has(node.id)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Duplicate node id: ${node.id}` });
+    if (ids.has(node.id)) ctx.addIssue({ code: 'custom', message: `Duplicate node id: ${node.id}` });
     ids.add(node.id);
   }
   const edgeIds = new Set<string>();
   for (const edge of file.edges) {
-    if (edgeIds.has(edge.id)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Duplicate edge id: ${edge.id}` });
+    if (edgeIds.has(edge.id)) ctx.addIssue({ code: 'custom', message: `Duplicate edge id: ${edge.id}` });
     edgeIds.add(edge.id);
     if (!ids.has(edge.source) || !ids.has(edge.target) || edge.source === edge.target) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Edge ${edge.id} has an invalid endpoint` });
+      ctx.addIssue({ code: 'custom', message: `Edge ${edge.id} has an invalid endpoint` });
     }
   }
 });
@@ -164,6 +217,58 @@ export const reflectionSchema = z.object({
   sourceEventIds: z.array(z.string()).default([]),
 });
 export type Reflection = z.infer<typeof reflectionSchema>;
+
+/** Personal-atlas records. All remain local and are only persisted with explicit long-term storage. */
+export const journalEntrySchema = z.object({
+  id: z.string().min(1),
+  createdAt: z.string(),
+  updatedAt: z.string().optional(),
+  title: z.string().min(1).max(240),
+  body: z.string().max(20000),
+  kind: z.enum(['reflection', 'context', 'continuity']).default('reflection'),
+  temporalStatus: z.enum(TEMPORAL_STATUSES).default('current'),
+  evidenceClass: z.enum(EVIDENCE_CLASSES).default('directly-reported'),
+  sensitivity: z.enum(SENSITIVITY_LEVELS).default('private'),
+  linkedNodeIds: z.array(z.string().max(120)).default([]),
+  suggestedNodeIds: z.array(z.string().max(120)).default([]),
+  tags: z.array(z.string().max(80)).max(40).default([]),
+});
+export type JournalEntry = z.infer<typeof journalEntrySchema>;
+
+export const checkInEntrySchema = z.object({
+  id: z.string().min(1),
+  createdAt: z.string(),
+  situation: z.string().max(2000).default(''),
+  emotions: z.array(z.object({ name: z.string().max(120), intensity: z.number().min(0).max(1).nullable().default(null) })).max(30).default([]),
+  bodySignals: z.array(z.string().max(120)).max(30).default([]),
+  thoughts: z.string().max(4000).default(''),
+  response: z.string().max(4000).default(''),
+  outcome: z.string().max(4000).default(''),
+  linkedNodeIds: z.array(z.string().max(120)).default([]),
+  sensitivity: z.enum(SENSITIVITY_LEVELS).default('private'),
+});
+export type CheckInEntry = z.infer<typeof checkInEntrySchema>;
+
+export const decisionRecordSchema = z.object({
+  id: z.string().min(1),
+  createdAt: z.string(),
+  updatedAt: z.string().optional(),
+  title: z.string().min(1).max(240),
+  question: z.string().max(2000).default(''),
+  facts: z.string().max(6000).default(''),
+  assumptions: z.string().max(6000).default(''),
+  possibilities: z.string().max(6000).default(''),
+  risks: z.string().max(6000).default(''),
+  unknowns: z.string().max(6000).default(''),
+  values: z.string().max(6000).default(''),
+  reversible: z.string().max(3000).default(''),
+  irreversible: z.string().max(3000).default(''),
+  shortTerm: z.string().max(3000).default(''),
+  longTerm: z.string().max(3000).default(''),
+  linkedNodeIds: z.array(z.string().max(120)).default([]),
+  sensitivity: z.enum(SENSITIVITY_LEVELS).default('private'),
+});
+export type DecisionRecord = z.infer<typeof decisionRecordSchema>;
 
 export const exerciseStateSchema = z.object({
   exerciseId: z.string().min(1),
@@ -324,7 +429,7 @@ export const clientSettingsSchema = z.object({
   aiConsent: z.boolean().default(false),
   longTermMemory: z.boolean().default(false),
   provider: z.enum(AI_PROVIDERS).default('offline'),
-  modelByProvider: z.record(z.string()).default({}),
+  modelByProvider: z.record(z.string(), z.string()).default({}),
   theme: z.enum(['dark', 'light']).default('dark'),
   reducedMotion: z.boolean().default(false),
   showSignals: z.boolean().default(true),

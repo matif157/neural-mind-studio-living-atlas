@@ -4,156 +4,62 @@
  * These are organisational lenses for the person's own words. They are not
  * clinical categories, brain regions, or inferred facts. A dimension is a
  * presentation and review aid, never a diagnosis or a biological localisation.
+ *
+ * `shared/domain.ts` is the single canonical source for the ten lenses. This
+ * module keeps the adapter API used by the 2D canvas, the universe workspace
+ * and the inspector, and also understands the longer legacy ids from older
+ * exports so saved projects keep working.
  */
-import type { MindNodeKind } from './domain';
+import {
+  getNodeDimension, MIND_DIMENSIONS, MIND_DIMENSION_IDS,
+  type MindDimensionId, type MindNodeKind,
+} from './domain';
 
-export const PERSONAL_DIMENSIONS = [
-  {
-    id: 'life-timeline',
-    label: 'Life Timeline',
-    short: 'Timeline',
-    color: '#7dd3fc',
-    icon: 'clock',
-    description: 'Events, situations and dated context the person chose to record.',
-    kinds: ['situation', 'context'],
-  },
-  {
-    id: 'memories-experiences',
-    label: 'Memories & Experiences',
-    short: 'Memories',
-    color: '#a78bfa',
-    icon: 'brain',
-    description: 'Experiences described as remembered. Nothing is recovered or invented.',
-    kinds: ['memory'],
-  },
-  {
-    id: 'thoughts-beliefs',
-    label: 'Thoughts & Beliefs',
-    short: 'Thoughts',
-    color: '#a9b4ff',
-    icon: 'lightbulb',
-    description: 'Exact reported thoughts, beliefs and values, with interpretations kept separate.',
-    kinds: ['thought', 'belief', 'value', 'pattern'],
-  },
-  {
-    id: 'emotional-landscape',
-    label: 'Emotional Landscape',
-    short: 'Emotions',
-    color: '#f5b94c',
-    icon: 'heart',
-    description: 'Felt emotional states named by the person, with self-rated intensity only.',
-    kinds: ['emotion'],
-  },
-  {
-    id: 'physical-internal',
-    label: 'Physical & Internal Experiences',
-    short: 'Body',
-    color: '#f18db3',
-    icon: 'pulse',
-    description: 'Bodily or interoceptive observations, never medical findings.',
-    kinds: ['body'],
-  },
-  {
-    id: 'behavioural-patterns',
-    label: 'Behavioural Patterns',
-    short: 'Behaviour',
-    color: '#59d3c2',
-    icon: 'repeat',
-    description: 'Reported actions, responses and reflection strategies across time.',
-    kinds: ['behavior', 'coping'],
-  },
-  {
-    id: 'relationship-patterns',
-    label: 'Relationship Patterns',
-    short: 'Relationships',
-    color: '#e0a2c0',
-    icon: 'users',
-    description: 'Relationships and social contexts the person voluntarily described.',
-    kinds: ['social', 'need'],
-  },
-  {
-    id: 'imagination-creativity',
-    label: 'Imagination & Creativity',
-    short: 'Imagination',
-    color: '#f0abfc',
-    icon: 'sparkles',
-    description: 'Imagined scenarios, creative material and educational lenses for exploration.',
-    kinds: ['knowledge', 'exercise'],
-  },
-  {
-    id: 'personal-strengths',
-    label: 'Personal Strengths',
-    short: 'Strengths',
-    color: '#7fd6a0',
-    icon: 'star',
-    description: 'User-identified strengths, values and supportive strategies.',
-    kinds: ['value', 'coping'],
-  },
-  {
-    id: 'decisions-future',
-    label: 'Decisions & Future Direction',
-    short: 'Future',
-    color: '#8fd7ff',
-    icon: 'target',
-    description: 'Chosen directions, goals and revisable next steps.',
-    kinds: ['goal'],
-  },
-] as const;
+export type PersonalDimensionId = MindDimensionId;
+export const PERSONAL_DIMENSIONS = MIND_DIMENSIONS;
+export const PERSONAL_DIMENSION_IDS = MIND_DIMENSION_IDS;
 
-export type PersonalDimensionId = (typeof PERSONAL_DIMENSIONS)[number]['id'];
-
-export const PERSONAL_DIMENSION_IDS = [
-  'life-timeline',
-  'memories-experiences',
-  'thoughts-beliefs',
-  'emotional-landscape',
-  'physical-internal',
-  'behavioural-patterns',
-  'relationship-patterns',
-  'imagination-creativity',
-  'personal-strengths',
-  'decisions-future',
-] as const satisfies readonly PersonalDimensionId[];
-
-const KIND_TO_DIMENSION: Record<string, PersonalDimensionId> = {
-  root: 'decisions-future',
-  situation: 'life-timeline',
-  context: 'life-timeline',
-  memory: 'memories-experiences',
-  thought: 'thoughts-beliefs',
-  belief: 'thoughts-beliefs',
-  pattern: 'thoughts-beliefs',
-  value: 'personal-strengths',
-  emotion: 'emotional-landscape',
-  body: 'physical-internal',
-  behavior: 'behavioural-patterns',
-  coping: 'behavioural-patterns',
-  social: 'relationship-patterns',
-  need: 'relationship-patterns',
-  knowledge: 'imagination-creativity',
-  exercise: 'imagination-creativity',
-  goal: 'decisions-future',
+/** Legacy hyphenated ids from earlier Personal Mind Atlas exports. */
+const LEGACY_DIMENSION_IDS: Record<string, MindDimensionId> = {
+  'life-timeline': 'timeline',
+  'memories-experiences': 'memories',
+  'thoughts-beliefs': 'thoughts',
+  'emotional-landscape': 'emotion',
+  'physical-internal': 'body',
+  'behavioural-patterns': 'behaviour',
+  'relationship-patterns': 'relationships',
+  'imagination-creativity': 'imagination',
+  'personal-strengths': 'strengths',
+  'decisions-future': 'decisions',
 };
 
+export function normalizeDimensionId(value: string | null | undefined): PersonalDimensionId | null {
+  if (!value) return null;
+  return LEGACY_DIMENSION_IDS[value] ?? (PERSONAL_DIMENSION_IDS.includes(value as MindDimensionId) ? value as MindDimensionId : null);
+}
+
 export function isPersonalDimension(value: string): value is PersonalDimensionId {
-  return PERSONAL_DIMENSIONS.some((dimension) => dimension.id === value);
+  return normalizeDimensionId(value) !== null;
 }
 
+/** Primary dimension for a node kind; an explicit stored dimension always wins. */
 export function dimensionForKind(kind: MindNodeKind | string): PersonalDimensionId {
-  return KIND_TO_DIMENSION[kind] ?? 'life-timeline';
+  return getNodeDimension({ kind: kind as MindNodeKind });
 }
 
-export function dimensionMeta(id: PersonalDimensionId) {
-  return PERSONAL_DIMENSIONS.find((dimension) => dimension.id === id) ?? PERSONAL_DIMENSIONS[0];
+export function dimensionMeta(id: string | null | undefined) {
+  const normalized = normalizeDimensionId(id) ?? PERSONAL_DIMENSION_IDS[0];
+  return PERSONAL_DIMENSIONS.find((dimension) => dimension.id === normalized) ?? PERSONAL_DIMENSIONS[0];
 }
 
-export function dimensionColor(id: PersonalDimensionId): string {
+export function dimensionColor(id: string | null | undefined): string {
   return dimensionMeta(id).color;
 }
 
 /** Stable 3D anchor per dimension. Presentation-only; never stored in 2D position. */
-export function dimensionAnchor(id: PersonalDimensionId): [number, number, number] {
-  const index = PERSONAL_DIMENSIONS.findIndex((dimension) => dimension.id === id);
+export function dimensionAnchor(id: string | null | undefined): [number, number, number] {
+  const normalized = normalizeDimensionId(id) ?? PERSONAL_DIMENSION_IDS[0];
+  const index = PERSONAL_DIMENSIONS.findIndex((dimension) => dimension.id === normalized);
   const safeIndex = index < 0 ? 0 : index;
   const angle = (safeIndex / PERSONAL_DIMENSIONS.length) * Math.PI * 2;
   return [Math.cos(angle) * 9.5, ((safeIndex % 3) - 1) * 2.6, Math.sin(angle) * 9.5];
